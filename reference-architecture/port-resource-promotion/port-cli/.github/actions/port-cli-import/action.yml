@@ -1,0 +1,100 @@
+name: Port import
+description: Run port import and write an always-on step summary.
+
+inputs:
+  input_file:
+    description: Path to the Port export file (JSON).
+    required: true
+  target_org:
+    description: Target organization name for --target-org (defaults to PORT_ORG_NAME).
+    required: false
+    default: ""
+  dry_run:
+    description: Pass --dry-run to port import (preview only, no changes applied).
+    required: false
+    default: "false"
+  verbose:
+    description: Pass --verbose and --max-errors 0 to port import (full error list, no truncation).
+    required: false
+    default: "false"
+  summary_source:
+    description: Label for the source side of an auto-generated summary heading.
+    required: false
+    default: ""
+  summary_heading:
+    description: Markdown heading for the import summary (overrides summary_source).
+    required: false
+    default: ""
+  summary_subheading:
+    description: Markdown line below the heading (e.g. commit or release link).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Import
+      id: import
+      shell: bash
+      env:
+        INPUT_FILE: ${{ inputs.input_file }}
+        TARGET_ORG: ${{ inputs.target_org }}
+        DRY_RUN: ${{ inputs.dry_run }}
+        VERBOSE: ${{ inputs.verbose }}
+      run: |
+        set -euo pipefail
+
+        TARGET_ORG="${TARGET_ORG:-${PORT_ORG_NAME:?PORT_ORG_NAME is not set}}"
+
+        import_args=(
+          --input "${INPUT_FILE}"
+          --target-org "${TARGET_ORG}"
+          --client-id "${PORT_CLIENT_ID:?PORT_CLIENT_ID is not set}"
+          --client-secret "${PORT_CLIENT_SECRET:?PORT_CLIENT_SECRET is not set}"
+          --api-url "${PORT_API_URL:?PORT_API_URL is not set}"
+        )
+        if [ "${DRY_RUN}" = "true" ]; then
+          import_args+=(--dry-run)
+        fi
+        if [ "${VERBOSE}" = "true" ]; then
+          import_args+=(--verbose --max-errors 0)
+        fi
+
+        port import "${import_args[@]}" | tee /tmp/import-output.txt
+
+    - name: Write import summary
+      if: always()
+      shell: bash
+      env:
+        SUMMARY_SOURCE: ${{ inputs.summary_source }}
+        SUMMARY_HEADING: ${{ inputs.summary_heading }}
+        SUMMARY_SUBHEADING: ${{ inputs.summary_subheading }}
+        JOB_STATUS: ${{ steps.import.outcome }}
+        DRY_RUN: ${{ inputs.dry_run }}
+        TARGET_ORG: ${{ inputs.target_org }}
+      run: |
+        TARGET_ORG="${TARGET_ORG:-${PORT_ORG_NAME:?PORT_ORG_NAME is not set}}"
+
+        if [ -n "${SUMMARY_HEADING}" ]; then
+          HEADING="${SUMMARY_HEADING}"
+        elif [ -n "${SUMMARY_SOURCE}" ]; then
+          HEADING="## Port Import: \`${SUMMARY_SOURCE}\` → \`${TARGET_ORG}\`"
+        else
+          HEADING="## Port Import → \`${TARGET_ORG}\`"
+        fi
+
+        {
+          echo "${HEADING}"
+          echo "${SUMMARY_SUBHEADING}"
+          if [ "${DRY_RUN}" = "true" ]; then
+            echo "**Mode:** dry-run (no changes applied)"
+          else
+            echo "**Mode:** import"
+          fi
+          echo "**Status:** ${JOB_STATUS}"
+          echo ""
+          echo '```'
+          if [ -f /tmp/import-output.txt ]; then
+            head -c 60000 /tmp/import-output.txt
+          fi
+          echo '```'
+        } >> "${GITHUB_STEP_SUMMARY}"

@@ -1,0 +1,131 @@
+name: Port compare
+description: Run port compare and write a step summary.
+
+inputs:
+  source:
+    description: Source organization name or export file path.
+    required: true
+  target:
+    description: Target organization name or export file path (defaults to PORT_ORG_NAME).
+    required: false
+    default: ""
+  compare_scope:
+    description: Comma-separated resource types for --include (defaults to COMPARE_SCOPE env).
+    required: false
+    default: ""
+  verbose:
+    description: Pass --verbose to port compare.
+    required: false
+    default: "false"
+  fail_on_diff:
+    description: Pass --fail-on-diff to port compare.
+    required: false
+    default: "false"
+  summary_source:
+    description: Label for the source side of an auto-generated summary heading (defaults to the basename of source).
+    required: false
+    default: ""
+  summary_heading:
+    description: Markdown heading for the step summary (overrides summary_source).
+    required: false
+    default: ""
+  summary_subheading:
+    description: Optional markdown line below the heading (e.g. release or ref link).
+    required: false
+    default: ""
+  capture_summary_file:
+    description: When true, also write the summary to /tmp/summary.md.
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Compare
+      shell: bash
+      env:
+        SOURCE: ${{ inputs.source }}
+        TARGET: ${{ inputs.target }}
+        COMPARE_SCOPE_INPUT: ${{ inputs.compare_scope }}
+        VERBOSE: ${{ inputs.verbose }}
+        FAIL_ON_DIFF: ${{ inputs.fail_on_diff }}
+      run: |
+        set -euo pipefail
+
+        TARGET="${TARGET:-${PORT_ORG_NAME:?PORT_ORG_NAME is not set}}"
+        COMPARE_SCOPE="${COMPARE_SCOPE_INPUT:-${COMPARE_SCOPE:?COMPARE_SCOPE is not set}}"
+
+        # Mirror port-cli isFilePath: live orgs need explicit target client flags.
+        is_file_path=false
+        case "${TARGET}" in
+          *.json|*.tar.gz|*.gz|/*|./*|../*|*/*) is_file_path=true ;;
+        esac
+
+        compare_args=(
+          --source "${SOURCE}"
+          --target "${TARGET}"
+          --include "${COMPARE_SCOPE}"
+        )
+        if [ "${is_file_path}" = "false" ]; then
+          compare_args+=(
+            --target-client-id "${PORT_CLIENT_ID:?PORT_CLIENT_ID is not set}"
+            --target-client-secret "${PORT_CLIENT_SECRET:?PORT_CLIENT_SECRET is not set}"
+          )
+        fi
+        if [ "${VERBOSE}" = "true" ]; then
+          compare_args+=(--verbose)
+        fi
+        if [ "${FAIL_ON_DIFF}" = "true" ]; then
+          compare_args+=(--fail-on-diff)
+        fi
+
+        # Persist resolved target for the summary step.
+        echo "COMPARE_TARGET=${TARGET}" >> "${GITHUB_ENV}"
+
+        port compare "${compare_args[@]}" | tee /tmp/compare-output.txt
+
+    - name: Write compare summary
+      if: always()
+      shell: bash
+      env:
+        SOURCE: ${{ inputs.source }}
+        TARGET_INPUT: ${{ inputs.target }}
+        SUMMARY_SOURCE: ${{ inputs.summary_source }}
+        SUMMARY_HEADING: ${{ inputs.summary_heading }}
+        SUMMARY_SUBHEADING: ${{ inputs.summary_subheading }}
+        CAPTURE_SUMMARY_FILE: ${{ inputs.capture_summary_file }}
+      run: |
+        TARGET="${COMPARE_TARGET:-${TARGET_INPUT:-${PORT_ORG_NAME:?PORT_ORG_NAME is not set}}}"
+
+        if [ -z "${SUMMARY_SOURCE}" ]; then
+          SUMMARY_SOURCE="$(basename "${SOURCE}")"
+        fi
+
+        if [ -n "${SUMMARY_HEADING}" ]; then
+          HEADING="${SUMMARY_HEADING}"
+        elif [ -n "${SUMMARY_SOURCE}" ]; then
+          HEADING="## Port Compare: \`${SUMMARY_SOURCE}\` → \`${TARGET}\`"
+        else
+          HEADING=""
+        fi
+
+        if [ -n "${HEADING}" ]; then
+          {
+            echo "${HEADING}"
+            if [ -n "${SUMMARY_SUBHEADING}" ]; then
+              echo "${SUMMARY_SUBHEADING}"
+            fi
+            echo ""
+            echo '```'
+            if [ -f /tmp/compare-output.txt ]; then
+              head -c 60000 /tmp/compare-output.txt
+            fi
+            echo '```'
+          } > /tmp/summary-block.md
+
+          if [ "${CAPTURE_SUMMARY_FILE}" = "true" ]; then
+            cat /tmp/summary-block.md | tee /tmp/summary.md >> "${GITHUB_STEP_SUMMARY}"
+          else
+            cat /tmp/summary-block.md >> "${GITHUB_STEP_SUMMARY}"
+          fi
+        fi
