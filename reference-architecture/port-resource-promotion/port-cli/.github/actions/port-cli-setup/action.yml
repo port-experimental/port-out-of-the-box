@@ -1,10 +1,20 @@
 name: Port CLI setup
 description: Validate Port credentials and install port-cli.
 
+inputs:
+  require_credentials:
+    description: >-
+      When "true" (default), fail if Port credentials are missing. Set "false"
+      for credential-free flows (e.g. file-vs-file compare on untrusted PRs)
+      that only need the CLI installed, not a live-org connection.
+    required: false
+    default: "true"
+
 runs:
   using: composite
   steps:
     - name: Validate Port credentials
+      if: inputs.require_credentials == 'true'
       shell: bash
       run: |
         set -euo pipefail
