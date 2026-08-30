@@ -41,3 +41,6 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
+
+# Disable if testing code directly from this repo
+/.github/
