@@ -35,7 +35,15 @@ This directory contains:
 - `.github/actions/port-cli-import` — runs `port import` and writes an import summary.
 - [`port-config-port-cli/`](port-config-port-cli/) — where your exported `port-config.json` lives.
 
+## Prerequisites
+
+- A Port account with [client credentials](https://docs.port.io/build-your-software-catalog/custom-integration/api/#get-api-token) for each target org (Integration, Staging, Production)
+- The [Port CLI](https://docs.port.io/) installed locally (to export config)
+- Admin access on the repo so you can create GitHub Environments
+
 ## Use it in your repo
+
+Enabling this project inside a fork of this catalog instead? Copy only `.github/` to the repository root, leave `port-config-port-cli/` where it is, and see the [repo README](../../../README.md) for that flow.
 
 1. **Copy** the contents of this directory into your repo (the `.github/` folder and `port-config-port-cli/`).
 2. **Create the three GitHub Environments the pipeline uses:** `integration`, `staging`, `production`.
@@ -49,10 +57,10 @@ This directory contains:
    - Variables: `PORT_CLIENT_ID`, `PORT_ORG_NAME` (a label used for CLI targeting and step summaries — conventionally the org slug, e.g. `your-org-slug`), `PORT_API_URL` (e.g. `https://api.us.port.io/v1` or `https://api.port.io/v1`)
 5. **Export and commit** your config to `port-config-port-cli/port-config.json`. See [`port-config-port-cli/README.md`](port-config-port-cli/README.md) for the `port export` command.
 
-That's it. Push to `main` promotes to Integration; publishing a release promotes through Staging to Production.
+That's it. Push to `main` promotes to Integration — you should see a compare run and an import run for Integration under the Actions tab. Publishing a release promotes through Staging to Production.
 
 ## Make it yours
 
 - **Add your own tests.** The `test-stg` job has an "Additional tests" step — drop in API reachability checks, blueprint/action assertions, or any validation you need before Production is eligible.
-- **Tune the scope.** `COMPARE_SCOPE` controls which resource types are diffed; `CONFIG_PATH` (repository variable) overrides the default export location.
+- **Tune the scope and layout.** `COMPARE_SCOPE` controls which resource types are diffed. Two settings must agree on where `port-config.json` lives: the `CONFIG_PATH` default (overridable with a `CONFIG_PATH` repository variable) and the `on.push` / `on.pull_request` path filters. The workflow ships pointed at this catalog's nested layout, so it runs as-is from a fork. When this directory becomes your repository root, set both to `port-config-port-cli/**` (or `port-config-port-cli/port-config.json` for `CONFIG_PATH`).
 - **Adjust the gates.** Environment protections are standard GitHub settings — tighten reviewers, branch/tag rules, or wait timers to match your org's release process.

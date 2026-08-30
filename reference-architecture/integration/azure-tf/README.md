@@ -28,6 +28,8 @@ Additional subscriptions are added with a few lines (see
 - [Terraform](https://developer.hashicorp.com/terraform/install) >= 1.15.0
 - An Azure subscription and permission to create resources in it (`az login`)
 - Port credentials: [client id and secret](https://docs.port.io/build-your-software-catalog/custom-integration/api/#get-api-token)
+- Terraform Cloud (or another state backend — see the commented `backend "azurerm"`
+  block in `terraform/terraform.tf`)
 
 ## Quick start
 
@@ -55,106 +57,8 @@ to allow that cleanup; if a destroy fails mid-flight with leftovers in the RG,
 re-run apply, or delete the stuck Container Apps Environment / RG in Azure and
 apply again.
 
-## Enable live-event workers (`OCEAN__BASE_URL`)
-
-Event Grid can deliver to the Container App without this, but Ocean **does not
-start webhook queue workers** unless `OCEAN__BASE_URL` is set. Without it you
-see `POST /integration/events` → 200 → `Event Added To Queue`, then silence —
-no Port upserts.
-
-This stack sources Port’s module
-`port-labs/integration-factory/ocean//examples/azure_container_app_azure_integration`.
-That module does **not** set `OCEAN__BASE_URL`. Until Port fixes it (see
-[Port Dev: fix in integration-factory](#port-dev-fix-in-integration-factory)),
-operators must set it with a two-step apply:
-
-1. Apply once (as in [Quick start](#quick-start)) so the Container App and Event
-   Grid exist.
-2. Read the **stable** hostname (not `container_app_fqdn`, which includes a
-   revision suffix that changes on every app update):
-
-   ```bash
-   terraform output -raw container_app_fqdn_stable
-   ```
-
-3. Set in the env tfvars (or `TF_VAR_ocean_base_url`) — **https + FQDN, no path**:
-
-   ```hcl
-   ocean_base_url = "https://<container_app_fqdn_stable>"
-   ```
-
-4. Apply again so the revision gets `OCEAN__BASE_URL`.
-5. Confirm in Container App logs at startup that you do **not** see
-   `No base URL provided, or webhook processing is disabled… skipping webhook processing`.
-   Create a resource group and check Port for the entity without a manual resync.
-
-CI keeps working once `ocean_base_url` is committed in the env tfvars.
-
-**Apply caveat:** Setting `ocean_base_url` updates the Container App and creates a
-new revision. Upstream still points Event Grid at the **revision** FQDN
-(`container_app_latest_fqdn`), so that apply often fails with Terraform’s
-`Provider produced inconsistent final plan` on the Event Grid subscription
-webhook URL. Re-run apply; the second run usually succeeds. This repo’s
-`container_app_fqdn_stable` / `live_events_webhook_url` outputs are for operators
-and docs only — they do **not** change how the Port module wires Event Grid.
-
-```mermaid
-sequenceDiagram
-  participant EG as EventGrid
-  participant ACA as ContainerApp
-  participant Q as LocalQueue
-  participant W as Workers
-  participant Port as PortAPI
-  EG->>ACA: POST /integration/events
-  ACA->>Q: Event Added To Queue
-  Note over W: Workers start only if OCEAN__BASE_URL set
-  W->>Q: dequeue
-  W->>Port: upsert entity
-```
-
-### Port Dev: fix in integration-factory
-
-**Upstream:** `port-labs/integration-factory/ocean`, example path
-`examples/azure_container_app_azure_integration` (the module this repo’s
-`terraform/main.tf` sources).
-
-**Problems in that module today:**
-
-1. It never sets `OCEAN__BASE_URL` / `app_host`. Ocean starts LocalQueue workers
-   only when that is set (`port_ocean/ocean.py` → `_register_addons`). HTTP
-   routes still accept Event Grid POSTs, so you get 200 and
-   `Event Added To Queue` while the queue is never drained.
-2. It wires Event Grid to
-   `https://${…container_app_latest_fqdn}/integration/events`. That hostname
-   includes a revision segment (`…--abc1234.…`) that changes on every Container
-   App update, which triggers the inconsistent-plan apply failure above.
-
-**Symptom (workers):** Event Grid → Ocean 200 / `Event Added To Queue`, no
-catalog upsert; only polling logs follow.
-
-**Startup log:**
-`No base URL provided, or webhook processing is disabled is this event listener, skipping webhook processing`
-
-**Regression:** Azure integration `0.1.371+` (AbstractWebhookProcessor queue);
-reproduced on `0.1.378`.
-
-**Best fix (Port Dev):** In the integration-factory Azure Container App module:
-
-1. Use the **stable** ingress FQDN (`ingress[0].fqdn`), not
-   `latest_revision_fqdn`.
-2. Set `OCEAN__BASE_URL=https://<stable-fqdn>` on the Container App from that
-   value (two-phase / follow-up update if same-resource circular dependency).
-3. Point Event Grid webhooks at
-   `https://<stable-fqdn>/integration/events` so subscription URLs do not churn
-   when the app revision changes.
-
-That removes the need for this repo’s `ocean_base_url` workaround and the
-revision-FQDN apply failures.
-
-**Operator workaround until then:** set
-`additional_environment_variables.OCEAN__BASE_URL` after the FQDN is known
-(this repo’s `ocean_base_url` two-pass apply above). Re-run apply if Event Grid
-hits the inconsistent final plan error.
+After the first apply, set `ocean_base_url` so live-event workers start — see
+[Troubleshooting](#troubleshooting).
 
 ## Use an existing Event Grid system topic
 
@@ -169,7 +73,7 @@ Requirements:
   integration expects.
 - Terraform still creates Event Grid **event subscriptions** (webhooks) on that
   topic. Your credentials need permission to add subscriptions there.
-- Live-event workers still need [`ocean_base_url`](#enable-live-event-workers-ocean__base_url).
+- Live-event workers still need [`ocean_base_url`](#live-events-queued-but-nothing-reaches-port).
 
 In your env tfvars:
 
@@ -196,9 +100,11 @@ need permission to create Event Grid resources in every target subscription.
 
 ## Deploying via GitHub Actions
 
-The workflow at `.github/workflows/integration-azure-tf.yml` runs
-`plan` on pull requests and `apply` on push, per environment (`integration`,
-`staging`, `production`).
+Enabling this project inside a fork of this catalog? Copy only `.github/` to the
+repository root and see the [repo README](../../../README.md) for that flow.
+After enablement (or when this directory is your repository root), the workflow
+at `.github/workflows/integration-azure-tf.yml` runs `plan` on pull requests and
+`apply` on push, per environment (`integration`, `staging`, `production`).
 
 `AZURE_CLIENT_ID` is an **app registration** used by GitHub Actions to run
 Terraform. It is separate from the Container App managed identity the Ocean
@@ -235,10 +141,9 @@ What that Terraform creates (same steps if you prefer the portal):
    **Contributor** and **User Access Administrator** (needed so Terraform can
    create resources and assign roles to the Container App identity).
 5. On the app → **Certificates & secrets → Federated credentials**, add a
-   GitHub Actions credential: org `port-experimental`, repo `port-out-of-the-box`,
-   entity type **Environment**, name `integration`, credential name
-   `gha-deploy` (subject
-   `repo:port-experimental/port-out-of-the-box:environment:integration`).
+   GitHub Actions credential: org `<your-org>`, repo `<your-repo>`, entity type
+   **Environment**, name `integration`, credential name `gha-deploy` (subject
+   `repo:<your-org>/<your-repo>:environment:integration`).
 
 ### GitHub environment config
 
@@ -271,7 +176,68 @@ Azure auth defaults to OIDC. To use a service principal secret instead, set
 ## Blueprints and mappings
 
 `initialize_port_resources` is `false` by default, so blueprints and mappings are
-managed as code in this repo ([blueprints](../../blueprint/azure),
-[mapping](../../integration-mapping/azure.yml)) and promoted through the normal
-Port config pipeline. Set it to `true` to let the integration seed its own
-defaults instead.
+managed as code and promoted through the normal Port config pipeline — see
+[`port-resource-promotion/port-cli`](../../port-resource-promotion/port-cli).
+Set it to `true` to let the integration seed its own defaults instead.
+
+## Troubleshooting
+
+### Live events queued but nothing reaches Port
+
+Event Grid can deliver to the Container App without this, but Ocean **does not
+start webhook queue workers** unless `OCEAN__BASE_URL` is set. Without it you
+see `POST /integration/events` → 200 → `Event Added To Queue`, then silence —
+no Port upserts.
+
+```mermaid
+sequenceDiagram
+  participant EG as EventGrid
+  participant ACA as ContainerApp
+  participant Q as LocalQueue
+  participant W as Workers
+  participant Port as PortAPI
+  EG->>ACA: POST /integration/events
+  ACA->>Q: Event Added To Queue
+  Note over W: Workers start only if OCEAN__BASE_URL set
+  W->>Q: dequeue
+  W->>Port: upsert entity
+```
+
+This stack sources Port's module
+`port-labs/integration-factory/ocean//examples/azure_container_app_azure_integration`.
+That module does **not** set `OCEAN__BASE_URL`, and it wires Event Grid to the
+revision FQDN (`container_app_latest_fqdn`), which changes on every Container App
+update. Regressed in Azure integration `0.1.371+` (reproduced on `0.1.378`).
+
+Until upstream sets a stable ingress FQDN and `OCEAN__BASE_URL` on the Container
+App, operators must set it with a two-step apply:
+
+1. Apply once (as in [Quick start](#quick-start)) so the Container App and Event
+   Grid exist.
+2. Read the **stable** hostname (not `container_app_fqdn`, which includes a
+   revision suffix that changes on every app update):
+
+   ```bash
+   terraform output -raw container_app_fqdn_stable
+   ```
+
+3. Set in the env tfvars (or `TF_VAR_ocean_base_url`) — **https + FQDN, no path**:
+
+   ```hcl
+   ocean_base_url = "https://<container_app_fqdn_stable>"
+   ```
+
+4. Apply again so the revision gets `OCEAN__BASE_URL`.
+5. Confirm in Container App logs at startup that you do **not** see
+   `No base URL provided, or webhook processing is disabled… skipping webhook processing`.
+   Create a resource group and check Port for the entity without a manual resync.
+
+CI keeps working once `ocean_base_url` is committed in the env tfvars.
+
+**Apply caveat:** Setting `ocean_base_url` updates the Container App and creates a
+new revision. Upstream still points Event Grid at the **revision** FQDN
+(`container_app_latest_fqdn`), so that apply often fails with Terraform's
+`Provider produced inconsistent final plan` on the Event Grid subscription
+webhook URL. Re-run apply; the second run usually succeeds. This repo's
+`container_app_fqdn_stable` / `live_events_webhook_url` outputs are for operators
+and docs only — they do **not** change how the Port module wires Event Grid.
