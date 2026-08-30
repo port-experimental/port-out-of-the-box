@@ -100,13 +100,13 @@ name: port-promote-port-cli
 on:
   pull_request:
     paths:
-      - "port-config-port-cli/**"
+      - "reference-architecture/port-resource-promotion/port-cli/port-config-port-cli/**"
       - ".github/workflows/port-promote-port-cli.yml"
       - ".github/actions/port-cli-*/**"
   push:
     branches: [main]          # update if your default branch has a different name
     paths:
-      - "port-config-port-cli/**"
+      - "reference-architecture/port-resource-promotion/port-cli/port-config-port-cli/**"
       - ".github/workflows/port-promote-port-cli.yml"
       - ".github/actions/port-cli-*/**"
   release:
@@ -125,7 +125,7 @@ permissions:
 env:
   PORT_CLI_VERSION: "0.3.8"
   # The repo-committed JSON export — the single source of truth for every job below.
-  CONFIG_PATH: "${{ vars.CONFIG_PATH || 'port-config-port-cli/port-config.json' }}"
+  CONFIG_PATH: "${{ vars.CONFIG_PATH || 'reference-architecture/port-resource-promotion/port-cli/port-config-port-cli/port-config.json' }}"
   # Resources included in every port-cli-compare invocation below.
   # automations omitted: compare diffs them under actions (no separate automations bucket).
   # page-permissions omitted: port compare accepts the type but does not diff it yet;
