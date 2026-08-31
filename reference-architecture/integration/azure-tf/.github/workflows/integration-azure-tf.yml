@@ -6,7 +6,7 @@ name: integration-azure-tf
 #   workflow_dispatch                -> choose environment + plan/destroy
 #
 # ENVIRONMENT links three things that must share a name: the GitHub Actions
-# environment, terraform/environments/<name>.tfvars, and the TFC workspace suffix
+# environment, $TF_DIR/environments/<name>.tfvars, and the TFC workspace suffix
 # ($TFC_WORKSPACE_SLUG-<name>).
 #
 # TFC_WORKSPACE_SLUG and TFC_WORKSPACE_TAGS are set in the workflow env: block
@@ -17,15 +17,20 @@ name: integration-azure-tf
 #              AZURE_CLIENT_ID, PORT_CLIENT_ID
 #   Secrets:   TF_API_TOKEN, PORT_CLIENT_SECRET
 #              (+ ARM_CLIENT_SECRET when USE_AZURE_STATIC_CREDENTIALS=true)
+#
+# Optional repository variable (Settings -> Secrets and variables -> Variables):
+#   TF_DIR — override the default Terraform root module path. Set it to
+#            `terraform` when this project sits at your repository root, and
+#            update the on.push / on.pull_request path filters to match.
 
 on:
   pull_request:
     paths:
-      - "terraform/**"
+      - "reference-architecture/integration/azure-tf/terraform/**"
       - ".github/workflows/integration-azure-tf.yml"
   push:
     paths:
-      - "terraform/**"
+      - "reference-architecture/integration/azure-tf/terraform/**"
       - ".github/workflows/integration-azure-tf.yml"
   workflow_dispatch:
     inputs:
@@ -51,7 +56,9 @@ permissions:
 
 env:
   TERRAFORM_VERSION: "1.15.8"
-  TF_DIR: terraform
+  # Ships pointed at this catalog's nested layout; override with a TF_DIR
+  # repository variable when the project moves to a repository root.
+  TF_DIR: "${{ vars.TF_DIR || 'reference-architecture/integration/azure-tf/terraform' }}"
   TFC_WORKSPACE_SLUG: port-integration-azure
   TFC_WORKSPACE_TAGS: port-integration
 

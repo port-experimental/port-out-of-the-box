@@ -106,6 +106,11 @@ After enablement (or when this directory is your repository root), the workflow
 at `.github/workflows/integration-azure-tf.yml` runs `plan` on pull requests and
 `apply` on push, per environment (`integration`, `staging`, `production`).
 
+The workflow ships pointed at this catalog's nested layout, so it runs as-is from
+a fork. When this directory becomes your repository root, set the `TF_DIR`
+repository variable to `terraform` and change the `on.push` / `on.pull_request`
+path filters to `terraform/**` to match.
+
 `AZURE_CLIENT_ID` is an **app registration** used by GitHub Actions to run
 Terraform. It is separate from the Container App managed identity the Ocean
 module creates for the running integration (that identity gets read permissions
