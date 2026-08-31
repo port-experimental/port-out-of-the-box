@@ -4,13 +4,15 @@ Committed Port Terraform module used as the single source of truth for promotion
 
 CI requires `generated.tf`. Until it exists, plan/apply jobs fail fast so an empty scaffold cannot accidentally manage a live Port org.
 
+The `cd terraform` in the command blocks below assumes this module sits one level below your working directory — adjust it to wherever this directory actually lives.
+
 ## Bootstrap (one-time, before enabling promotion)
 
 Use [`terraform-import-generator`](https://github.com/port-experimental/terraform-import-generator) against your Integration org.
 
 Keep `providers.tf` and `terraform.tf` in place. Prefer generating imports **without** `--terraform` when those files already exist; drive `terraform init` / `plan -generate-config-out` yourself so the generator cannot overwrite `providers.tf` with a conflicting default.
 
-The module’s local provider name is **`port-labs`** (generator default). That matches what `terraform plan -generate-config-out` emits, so `generated.tf` needs no provider-name rewrite. Do **not** pass `--provider-alias port`.
+The module's local provider name is **`port-labs`** (generator default). That matches what `terraform plan -generate-config-out` emits, so `generated.tf` needs no provider-name rewrite. Do **not** pass `--provider-alias port`.
 
 ```bash
 cd terraform

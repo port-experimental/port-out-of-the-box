@@ -15,9 +15,9 @@ You will need a Port account with [client credentials](https://docs.port.io/buil
 
 ## Reference architectures
 
-- [`reference-architecture/port-resource-promotion/port-cli`](reference-architecture/port-resource-promotion/port-cli) — Promote your Port configuration through Integration, Staging, and Production using a GitOps pipeline: review a diff on every pull request, deploy on merge, and roll out on release.
-- [`reference-architecture/port-resource-promotion/terraform`](reference-architecture/port-resource-promotion/terraform) — Promote Port configuration as Terraform through the same Integration → Staging → Production ladder: plan on pull request, apply on merge, and roll out on release with Terraform Cloud state.
-- [`reference-architecture/integration/azure-tf`](reference-architecture/integration/azure-tf) — deploy Port's Azure integration on Azure Container Apps with Event Grid for real-time catalog updates across one or more subscriptions (Terraform). Also needs an Azure subscription and Terraform Cloud (or another state backend).
+- [`reference-architecture/port-resource-promotion/port-cli`](reference-architecture/port-resource-promotion/port-cli) — **start here if you are new.** Promote your Port configuration through Integration, Staging, and Production using a GitOps pipeline: review a diff on every pull request, deploy on merge, and roll out on release. Needs nothing beyond Port credentials.
+- [`reference-architecture/port-resource-promotion/terraform`](reference-architecture/port-resource-promotion/terraform) — Promote Port configuration as Terraform through the same Integration → Staging → Production ladder: plan on pull request, apply on merge, and roll out on release. Also needs Terraform Cloud for state.
+- [`reference-architecture/integration/azure-tf`](reference-architecture/integration/azure-tf) — Deploy Port's Azure integration on Azure Container Apps with Event Grid for real-time catalog updates across one or more subscriptions (Terraform). Also needs an Azure subscription and Terraform Cloud (or another state backend).
 
 ## Toolchain
 
@@ -62,7 +62,7 @@ Leave the project's data where it is — nested inside the project folder. Only 
 
 If you later edit a project's workflow or actions, copy them to the root again. The nested project folder is the source of truth; the root `.github/` directory is a copy that GitHub can see.
 
-**What you should see:** the enabled workflow appears under the **Actions** tab. Open a pull request that touches the project's config and you get a diff comment; merge to `main` and the pipeline compares against Integration, then imports. That is the loop working.
+**What you should see:** the enabled workflow appears under the **Actions** tab. Open a pull request that touches the project's config and you get a review comment showing what would change; merge to `main` and the pipeline applies that change to Integration. That is the loop working.
 
 ## Use a project in your own repo
 

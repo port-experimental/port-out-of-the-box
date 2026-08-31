@@ -35,7 +35,17 @@ This directory contains:
 - `.github/actions/terraform-apply` — applies a saved plan and writes summaries.
 - [`terraform/`](terraform/) — Port provider module; commit your `generated.tf` here after bootstrap.
 
+## Prerequisites
+
+- A Port account with [client credentials](https://docs.port.io/build-your-software-catalog/custom-integration/api/#get-api-token) for each target org (Integration, Staging, Production)
+- [Terraform](https://developer.hashicorp.com/terraform/install) >= 1.15.0 installed locally (to bootstrap state)
+- A Terraform Cloud organization where you can create one workspace and one team API token per environment
+- [`terraform-import-generator`](https://github.com/port-experimental/terraform-import-generator) for the one-time bootstrap of `generated.tf`
+- Admin access on the repo so you can create GitHub Environments
+
 ## Use it in your repo
+
+Enabling this project inside a fork of this catalog instead? Copy only `.github/` to the repository root, leave `terraform/` where it is, and see the [repo README](../../../README.md) for that flow.
 
 1. **Copy** the contents of this directory into your repo (the `.github/` folder and `terraform/`).
 2. **Create the GitHub Environments the pipeline uses:** `integration`, `staging`, `production` (`sandbox` is reserved and not wired yet).
@@ -51,7 +61,7 @@ This directory contains:
    - Optional: `PORT_BASE_URL` (defaults to `https://api.us.port.io`; set `https://api.port.io` for EU)
 6. **Generate and commit** `terraform/generated.tf`, then bootstrap Integration state. See [`terraform/README.md`](terraform/README.md).
 
-That's it. Push to `main` promotes to Integration; publishing a release promotes through Staging to Production.
+That's it. Push to `main` promotes to Integration — you should see a plan run and an apply run for Integration under the Actions tab. Publishing a release promotes through Staging to Production.
 
 ## Auth and targeting
 
@@ -96,15 +106,8 @@ Treat `expiresIn` as a hard ceiling for GHA-hosted full refreshes until the prov
 
 - **Add your own tests.** The `test-stg` job has an extension point — drop in API reachability checks, blueprint/action assertions, or any validation you need before Production is eligible.
 - **Tune the workspace slug.** Change `TFC_WORKSPACE_SLUG` / `TFC_WORKSPACE_TAGS` in the workflow `env:` block if you want different TFC naming.
+- **Tune the layout.** Two settings must agree on where the Terraform root module lives: the `TF_WORKING_DIRECTORY` default (overridable with a `TF_WORKING_DIRECTORY` repository variable) and the `on.push` / `on.pull_request` path filters. The workflow ships pointed at this catalog's nested layout, so it runs as-is from a fork. When this directory becomes your repository root, set `TF_WORKING_DIRECTORY` to `terraform` and the path filters to `terraform/**`.
 - **Adjust the gates.** Environment protections are standard GitHub settings — tighten reviewers, branch/tag rules, or wait timers to match your org's release process.
-
-## Trigger scope
-
-For PR and push events, the promotion workflow runs only when these paths change:
-
-- `terraform/**`
-- `.github/workflows/port-promote-terraform.yml`
-- `.github/actions/terraform-*/**`
 
 ## References
 

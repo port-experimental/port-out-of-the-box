@@ -19,8 +19,8 @@ inputs:
     default: "true"
   require_generated:
     description: >
-      When "true" (default), fail if terraform/generated.tf is missing so an empty
-      scaffold cannot plan/apply against a live Port org.
+      When "true" (default), fail if generated.tf is missing from working_directory
+      so an empty scaffold cannot plan/apply against a live Port org.
     required: false
     default: "true"
 

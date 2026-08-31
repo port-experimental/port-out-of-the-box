@@ -71,8 +71,8 @@ name: port-promote-terraform
 #
 # TRIGGER → OPERATION MATRIX
 # ─────────────────────────────────────────────────────────────────────────────
-# The repo-committed Terraform root (`terraform/`, especially generated.tf) is
-# the single source of truth. There are two independent, trigger-driven flows
+# The repo-committed Terraform root ($TF_WORKING_DIRECTORY, especially
+# generated.tf) is the single source of truth. There are two independent, trigger-driven flows
 # over that same module:
 #
 #   Promote Port config → Integration
@@ -96,7 +96,7 @@ name: port-promote-terraform
 #
 # SOURCE ARTIFACT
 # ─────────────────────────────────────────────────────────────────────────────
-# `terraform/` (default), committed in repo — generated.tf is the Port resource
+# $TF_WORKING_DIRECTORY, committed in repo — generated.tf is the Port resource
 # SSoT (hand-generated via terraform-import-generator). Named for the Port
 # account, not any one environment; orgs (int/stg/prd) are where it's deployed.
 #
@@ -130,19 +130,24 @@ name: port-promote-terraform
 #    TFC_WORKSPACE_SLUG / TFC_WORKSPACE_TAGS live in workflow env:.
 # 7. Bootstrap Integration state once with terraform-import-generator, remove
 #    *_imports.tf, commit generated.tf, then enable this workflow.
+# 8. Optional repository variable (Settings → Secrets and variables → Variables):
+#      TF_WORKING_DIRECTORY — override the default Terraform root module path
+#      (reference-architecture/port-resource-promotion/terraform/terraform).
+#      Set it to `terraform` when this project sits at your repository root, and
+#      update the on.push / on.pull_request path filters to match.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
   pull_request:
     branches: [main]          # PR-to-trunk only; branch previews belong to sandbox (not modeled yet)
     paths:
-      - "terraform/**"
+      - "reference-architecture/port-resource-promotion/terraform/terraform/**"
       - ".github/workflows/port-promote-terraform.yml"
       - ".github/actions/terraform-*/**"
   push:
     branches: [main]          # update if your default branch has a different name
     paths:
-      - "terraform/**"
+      - "reference-architecture/port-resource-promotion/terraform/terraform/**"
       - ".github/workflows/port-promote-terraform.yml"
       - ".github/actions/terraform-*/**"
   release:
@@ -161,7 +166,10 @@ permissions:
 
 env:
   TERRAFORM_VERSION: "1.15.8"
-  TF_WORKING_DIRECTORY: terraform
+  # The committed Terraform root module — the single source of truth for every job
+  # below. Ships pointed at this catalog's nested layout; override with a
+  # TF_WORKING_DIRECTORY repository variable when the project moves.
+  TF_WORKING_DIRECTORY: "${{ vars.TF_WORKING_DIRECTORY || 'reference-architecture/port-resource-promotion/terraform/terraform' }}"
   TF_PLAN_FILE: tfplan
   # Required for port_page / port_folder resources from the import generator.
   PORT_BETA_FEATURES_ENABLED: "true"
