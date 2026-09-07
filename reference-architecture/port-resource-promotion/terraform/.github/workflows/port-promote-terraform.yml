@@ -40,8 +40,8 @@ name: port-promote-terraform
 # 4. Job env (provider + TFC auth via environment variables — no local tfvars):
 #      PORT_CLIENT_ID / PORT_CLIENT_SECRET  — Port OAuth machine-user credentials
 #      PORT_BASE_URL                        — optional; defaults to US
-#                                           (https://api.us.port.io); set
-#                                           https://api.port.io for EU
+#                                             (https://api.us.port.io); set
+#                                             https://api.port.io for EU
 #      PORT_BETA_FEATURES_ENABLED=true      — required for page/folder resources
 #      TF_API_TOKEN                         — Terraform Cloud API token
 #      TFC_ORGANIZATION                     — cloud backend org (per environment)
@@ -66,8 +66,18 @@ name: port-promote-terraform
 #    Because integration must run on pull_request, its environment cannot be
 #    restricted to the main branch (contrast: port-cli restricts integration to main).
 #
-# Shared steps live in .github/actions/
-# (terraform-setup, terraform-plan, terraform-apply).
+# Shared steps live in .github/actions/, one responsibility each, called in
+# this order by every job:
+#   terraform-setup      validate config, derive the workspace name, install CLI
+#   terraform-workspace  ensure the local-execution TFC workspace — the ONLY step
+#                        that mutates external infrastructure, and the only
+#                        third-party action (SHA-pinned, see that file)
+#   terraform-init       detect generated.tf, init, validate, bootstrap gate
+# then terraform-plan and/or terraform-apply as the job requires.
+#
+# Data flows through declared inputs/outputs, not GITHUB_ENV: terraform-setup
+# emits tf_workspace + tfc_organization, and every later action takes them as
+# inputs and sets TF_WORKSPACE / TF_CLOUD_ORGANIZATION in its own step env.
 #
 # TRIGGER → OPERATION MATRIX
 # ─────────────────────────────────────────────────────────────────────────────
@@ -93,6 +103,25 @@ name: port-promote-terraform
 #
 # Job ids/concurrency groups keep the short int/stg/prd suffix
 # abbreviations congruent with integration/staging/production.
+#
+# FIRST RUN (before generated.tf exists)
+# ─────────────────────────────────────────────────────────────────────────────
+# Bootstrapping needs the TFC workspace to already exist with
+# execution_mode=local, because terraform.tf uses a partial cloud {} block and a
+# workspace auto-created by `terraform init` would default to remote execution.
+# So a run with no generated.tf still provisions the workspace and runs init +
+# validate (proving credentials and state access), then fails with a bootstrap
+# notice in the job summary. The run is RED on purpose: nothing was promoted.
+#
+# Nothing plans or applies on that run. terraform-init failing skips the rest of
+# its job, which skips apply-int; on release it skips apply-stg → test-stg →
+# apply-prd (GitHub applies a default success() check to any if: without a
+# status function).
+#
+# Only integration is reachable this way, deliberately. workflow_dispatch runs
+# against integration, while staging and production are restricted to release
+# tags, so there is no dispatch path that bootstraps them — their workspaces are
+# created by the first release run.
 #
 # SOURCE ARTIFACT
 # ─────────────────────────────────────────────────────────────────────────────
@@ -128,8 +157,12 @@ name: port-promote-terraform
 #    and variables PORT_CLIENT_ID, TFC_ORGANIZATION (optional PORT_BASE_URL —
 #    defaults to https://api.us.port.io; set https://api.port.io for EU).
 #    TFC_WORKSPACE_SLUG / TFC_WORKSPACE_TAGS live in workflow env:.
-# 7. Bootstrap Integration state once with terraform-import-generator, remove
-#    *_imports.tf, commit generated.tf, then enable this workflow.
+# 7. Bootstrap Integration state once. Run this workflow via workflow_dispatch
+#    first: it creates the port-config-integration workspace with
+#    execution_mode=local, then fails with a bootstrap notice (expected — see
+#    FIRST RUN above). Then run terraform-import-generator locally against that
+#    workspace, remove *_imports.tf, and commit generated.tf. Subsequent runs
+#    plan and apply normally.
 # 8. Optional repository variable (Settings → Secrets and variables → Variables):
 #      TF_WORKING_DIRECTORY — override the default Terraform root module path
 #      (reference-architecture/port-resource-promotion/terraform/terraform).
@@ -159,10 +192,11 @@ on:
         type: boolean
         default: false
 
+# Least privilege: read-only by default. Jobs that need more elevate their own
+# GITHUB_TOKEN — pull-requests: write only where a PR comment is posted,
+# actions: read only where a saved-plan artifact is downloaded.
 permissions:
   contents: read
-  pull-requests: write        # required for posting PR plan comments
-  actions: read               # required to download saved-plan artifacts across jobs
 
 env:
   TERRAFORM_VERSION: "1.15.8"
@@ -193,6 +227,9 @@ jobs:
       (github.event_name != 'pull_request' ||
         github.event.pull_request.head.repo.full_name == github.repository)
     environment: integration
+    permissions:
+      contents: read
+      pull-requests: write      # posts the plan as a PR comment
     concurrency:
       group: port-plan-int-${{ github.event.pull_request.number || github.run_id }}
       cancel-in-progress: false
@@ -209,20 +246,36 @@ jobs:
         uses: actions/checkout@v6
 
       - uses: ./.github/actions/terraform-setup
+        id: setup
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          tfc_token: ${{ secrets.TF_API_TOKEN }}
+
+      - uses: ./.github/actions/terraform-workspace
+        with:
+          workspace_name: ${{ steps.setup.outputs.tf_workspace }}
+          organization: ${{ steps.setup.outputs.tfc_organization }}
+          workspace_tags: ${{ env.TFC_WORKSPACE_TAGS }}
+          tfc_token: ${{ secrets.TF_API_TOKEN }}
+
+      - uses: ./.github/actions/terraform-init
         with:
           working_directory: ${{ env.TF_WORKING_DIRECTORY }}
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          tf_workspace: ${{ steps.setup.outputs.tf_workspace }}
+          tfc_organization: ${{ steps.setup.outputs.tfc_organization }}
 
       - uses: ./.github/actions/terraform-plan
         with:
           working_directory: ${{ env.TF_WORKING_DIRECTORY }}
+          tf_workspace: ${{ steps.setup.outputs.tf_workspace }}
+          tfc_organization: ${{ steps.setup.outputs.tfc_organization }}
           plan_file: ${{ env.TF_PLAN_FILE }}
           summary_heading: "## Terraform Plan → Integration"
           summary_subheading: "**Ref:** `${{ github.ref_name }}` — **Run:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
           capture_summary_file: "true"
 
       - name: Upload Terraform plan
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: tfplan-int-${{ github.run_id }}
           path: ${{ env.TF_WORKING_DIRECTORY }}/${{ env.TF_PLAN_FILE }}
@@ -265,6 +318,9 @@ jobs:
       github.event_name == 'push' ||
       (github.event_name == 'workflow_dispatch' && inputs.apply == true)
     environment: integration
+    permissions:
+      contents: read
+      actions: read             # downloads the saved plan from plan-int
     concurrency:
       group: port-apply-int
       cancel-in-progress: false
@@ -281,12 +337,26 @@ jobs:
         uses: actions/checkout@v6
 
       - uses: ./.github/actions/terraform-setup
+        id: setup
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          tfc_token: ${{ secrets.TF_API_TOKEN }}
+
+      - uses: ./.github/actions/terraform-workspace
+        with:
+          workspace_name: ${{ steps.setup.outputs.tf_workspace }}
+          organization: ${{ steps.setup.outputs.tfc_organization }}
+          workspace_tags: ${{ env.TFC_WORKSPACE_TAGS }}
+          tfc_token: ${{ secrets.TF_API_TOKEN }}
+
+      - uses: ./.github/actions/terraform-init
         with:
           working_directory: ${{ env.TF_WORKING_DIRECTORY }}
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          tf_workspace: ${{ steps.setup.outputs.tf_workspace }}
+          tfc_organization: ${{ steps.setup.outputs.tfc_organization }}
 
       - name: Download Terraform plan
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: tfplan-int-${{ github.run_id }}
           path: ${{ env.TF_WORKING_DIRECTORY }}
@@ -294,6 +364,8 @@ jobs:
       - uses: ./.github/actions/terraform-apply
         with:
           working_directory: ${{ env.TF_WORKING_DIRECTORY }}
+          tf_workspace: ${{ steps.setup.outputs.tf_workspace }}
+          tfc_organization: ${{ steps.setup.outputs.tfc_organization }}
           plan_file: ${{ env.TF_PLAN_FILE }}
           summary_heading: "## Terraform Apply → Integration"
           summary_subheading: "**Commit:** [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})"
@@ -318,19 +390,35 @@ jobs:
       - uses: actions/checkout@v6
 
       - uses: ./.github/actions/terraform-setup
+        id: setup
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          tfc_token: ${{ secrets.TF_API_TOKEN }}
+
+      - uses: ./.github/actions/terraform-workspace
+        with:
+          workspace_name: ${{ steps.setup.outputs.tf_workspace }}
+          organization: ${{ steps.setup.outputs.tfc_organization }}
+          workspace_tags: ${{ env.TFC_WORKSPACE_TAGS }}
+          tfc_token: ${{ secrets.TF_API_TOKEN }}
+
+      - uses: ./.github/actions/terraform-init
         with:
           working_directory: ${{ env.TF_WORKING_DIRECTORY }}
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          tf_workspace: ${{ steps.setup.outputs.tf_workspace }}
+          tfc_organization: ${{ steps.setup.outputs.tfc_organization }}
 
       - uses: ./.github/actions/terraform-plan
         with:
           working_directory: ${{ env.TF_WORKING_DIRECTORY }}
+          tf_workspace: ${{ steps.setup.outputs.tf_workspace }}
+          tfc_organization: ${{ steps.setup.outputs.tfc_organization }}
           plan_file: ${{ env.TF_PLAN_FILE }}
           summary_heading: "## Terraform Plan → Staging"
           summary_subheading: "**Release:** [${{ github.event.release.tag_name }}](${{ github.event.release.html_url }})"
 
       - name: Upload Terraform plan
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: tfplan-stg-${{ github.run_id }}
           path: ${{ env.TF_WORKING_DIRECTORY }}/${{ env.TF_PLAN_FILE }}
@@ -342,6 +430,9 @@ jobs:
     needs: [plan-stg]
     if: github.event_name == 'release'
     environment: staging
+    permissions:
+      contents: read
+      actions: read             # downloads the saved plan from plan-stg
     concurrency:
       group: port-apply-stg
       cancel-in-progress: false
@@ -357,12 +448,26 @@ jobs:
       - uses: actions/checkout@v6
 
       - uses: ./.github/actions/terraform-setup
+        id: setup
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          tfc_token: ${{ secrets.TF_API_TOKEN }}
+
+      - uses: ./.github/actions/terraform-workspace
+        with:
+          workspace_name: ${{ steps.setup.outputs.tf_workspace }}
+          organization: ${{ steps.setup.outputs.tfc_organization }}
+          workspace_tags: ${{ env.TFC_WORKSPACE_TAGS }}
+          tfc_token: ${{ secrets.TF_API_TOKEN }}
+
+      - uses: ./.github/actions/terraform-init
         with:
           working_directory: ${{ env.TF_WORKING_DIRECTORY }}
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          tf_workspace: ${{ steps.setup.outputs.tf_workspace }}
+          tfc_organization: ${{ steps.setup.outputs.tfc_organization }}
 
       - name: Download Terraform plan
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: tfplan-stg-${{ github.run_id }}
           path: ${{ env.TF_WORKING_DIRECTORY }}
@@ -370,6 +475,8 @@ jobs:
       - uses: ./.github/actions/terraform-apply
         with:
           working_directory: ${{ env.TF_WORKING_DIRECTORY }}
+          tf_workspace: ${{ steps.setup.outputs.tf_workspace }}
+          tfc_organization: ${{ steps.setup.outputs.tfc_organization }}
           plan_file: ${{ env.TF_PLAN_FILE }}
           summary_heading: "## Terraform Apply → Staging"
           summary_subheading: "**Release:** [${{ github.event.release.tag_name }}](${{ github.event.release.html_url }})"
@@ -391,15 +498,31 @@ jobs:
       - uses: actions/checkout@v6
 
       - uses: ./.github/actions/terraform-setup
+        id: setup
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          tfc_token: ${{ secrets.TF_API_TOKEN }}
+
+      - uses: ./.github/actions/terraform-workspace
+        with:
+          workspace_name: ${{ steps.setup.outputs.tf_workspace }}
+          organization: ${{ steps.setup.outputs.tfc_organization }}
+          workspace_tags: ${{ env.TFC_WORKSPACE_TAGS }}
+          tfc_token: ${{ secrets.TF_API_TOKEN }}
+
+      - uses: ./.github/actions/terraform-init
         with:
           working_directory: ${{ env.TF_WORKING_DIRECTORY }}
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          tf_workspace: ${{ steps.setup.outputs.tf_workspace }}
+          tfc_organization: ${{ steps.setup.outputs.tfc_organization }}
 
       - name: Convergence check
         # Verifies apply fully converged — fails if terraform plan still has changes.
         uses: ./.github/actions/terraform-plan
         with:
           working_directory: ${{ env.TF_WORKING_DIRECTORY }}
+          tf_workspace: ${{ steps.setup.outputs.tf_workspace }}
+          tfc_organization: ${{ steps.setup.outputs.tfc_organization }}
           plan_file: ${{ env.TF_PLAN_FILE }}
           expect_no_changes: "true"
           summary_heading: "## Terraform Convergence → Staging"
@@ -431,14 +554,30 @@ jobs:
       - uses: actions/checkout@v6
 
       - uses: ./.github/actions/terraform-setup
+        id: setup
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          tfc_token: ${{ secrets.TF_API_TOKEN }}
+
+      - uses: ./.github/actions/terraform-workspace
+        with:
+          workspace_name: ${{ steps.setup.outputs.tf_workspace }}
+          organization: ${{ steps.setup.outputs.tfc_organization }}
+          workspace_tags: ${{ env.TFC_WORKSPACE_TAGS }}
+          tfc_token: ${{ secrets.TF_API_TOKEN }}
+
+      - uses: ./.github/actions/terraform-init
         with:
           working_directory: ${{ env.TF_WORKING_DIRECTORY }}
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          tf_workspace: ${{ steps.setup.outputs.tf_workspace }}
+          tfc_organization: ${{ steps.setup.outputs.tfc_organization }}
 
       # apply-prd runs only after test-stg succeeds and production approval.
       - uses: ./.github/actions/terraform-plan
         with:
           working_directory: ${{ env.TF_WORKING_DIRECTORY }}
+          tf_workspace: ${{ steps.setup.outputs.tf_workspace }}
+          tfc_organization: ${{ steps.setup.outputs.tfc_organization }}
           plan_file: ${{ env.TF_PLAN_FILE }}
           summary_heading: "## Terraform Plan → Production"
           summary_subheading: "**Release:** [${{ github.event.release.tag_name }}](${{ github.event.release.html_url }})"
@@ -446,6 +585,8 @@ jobs:
       - uses: ./.github/actions/terraform-apply
         with:
           working_directory: ${{ env.TF_WORKING_DIRECTORY }}
+          tf_workspace: ${{ steps.setup.outputs.tf_workspace }}
+          tfc_organization: ${{ steps.setup.outputs.tfc_organization }}
           plan_file: ${{ env.TF_PLAN_FILE }}
           summary_heading: "## Terraform Apply → Production"
           summary_subheading: "**Release:** [${{ github.event.release.tag_name }}](${{ github.event.release.html_url }})"

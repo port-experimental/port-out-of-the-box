@@ -30,10 +30,14 @@ Integration and the release flow are independent — promoting to Staging/Produc
 This directory contains:
 
 - [`.github/workflows/port-promote-terraform.yml`](.github/workflows/port-promote-terraform.yml) — the promotion pipeline.
-- `.github/actions/terraform-setup` — validates credentials, ensures a local-execution TFC workspace, init/validate.
+- `.github/actions/terraform-setup` — validates credentials, derives the workspace name, installs Terraform.
+- `.github/actions/terraform-workspace` — ensures a local-execution TFC workspace. The only step that mutates external infrastructure, and the only third-party action, isolated so both are auditable in one file.
+- `.github/actions/terraform-init` — init, validate, and the `generated.tf` bootstrap gate.
 - `.github/actions/terraform-plan` — plans and writes summaries (optional convergence mode).
 - `.github/actions/terraform-apply` — applies a saved plan and writes summaries.
 - [`terraform/`](terraform/) — Port provider module; commit your `generated.tf` here after bootstrap.
+
+Each action does one thing and passes data through declared inputs and outputs, so you can lift any of them into a pipeline of your own.
 
 ## Prerequisites
 
@@ -47,9 +51,9 @@ This directory contains:
 
 Enabling this project inside a fork of this catalog instead? Copy only `.github/` to the repository root, leave `terraform/` where it is, and see the [repo README](../../../README.md) for that flow.
 
-1. **Copy** the contents of this directory into your repo (the `.github/` folder and `terraform/`).
-2. **Create the GitHub Environments the pipeline uses:** `integration`, `staging`, `production` (`sandbox` is reserved and not wired yet).
-   Environment names are just deployment stages — rename them to whatever convention your org uses. The Port org each stage targets is determined by its credentials (`PORT_CLIENT_ID` / `PORT_CLIENT_SECRET`), not the environment name.
+1. **Copy** or **merge** project `.github/` folder with the `.github/` folder at your repository root.
+2. **Create GitHub Environments the correspond to the pipeline:** `integration`, `staging`, `production` (`sandbox` is reserved and not wired yet).
+   Environment names are just deployment stages — rename them to whatever convention your org uses. The Port org each stage targets is determined by its credentials (`PORT_CLIENT_ID` / `PORT_CLIENT_SECRET`), and is tied 1:1 to an Environment.
 3. **Add protections:**
    - `integration` — no branch restriction (`plan-int` must run on `pull_request`). Optionally add required reviewers (see [PR-credential model](#pr-credential-model-and-accepted-risk)).
    - `staging` — restrict to release tags (e.g. `v*`).
@@ -59,9 +63,13 @@ Enabling this project inside a fork of this catalog instead? Copy only `.github/
    - Secrets: `PORT_CLIENT_SECRET`, `TF_API_TOKEN`
    - Variables: `PORT_CLIENT_ID`, `TFC_ORGANIZATION`
    - Optional: `PORT_BASE_URL` (defaults to `https://api.us.port.io`; set `https://api.port.io` for EU)
-6. **Generate and commit** `terraform/generated.tf`, then bootstrap Integration state. See [`terraform/README.md`](terraform/README.md).
+6. **Generate and commit** `terraform/generated.tf`, then bootstrap Integration state.
+   - Run the workflow once via **workflow_dispatch** first. It provisions the Integration workspace, then fails with a bootstrap notice — expected until `generated.tf` is committed.
+   - See [`terraform/README.md`](terraform/README.md) for bootstrap steps. Set `PORT_BASE_URL` for Terraform; `PORT_API_BASE_URL` is only needed when running `port-tf-import` (see [Port API URL](terraform/README.md#port-api-url)).
+   - See [Troubleshooting](terraform/README.md#troubleshooting).
 
-That's it. Push to `main` promotes to Integration — you should see a plan run and an apply run for Integration under the Actions tab. Publishing a release promotes through Staging to Production.
+That's it. Merge to `main` promotes to Integration — you should see a plan run and an apply run for Integration under the Actions tab.
+Publishing a release promotes through Staging to Production.
 
 ## Auth and targeting
 
