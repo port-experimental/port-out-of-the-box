@@ -1,6 +1,0 @@
-.terraform/
-*.tfplan
-*.tfstate
-*.tfstate.*
-# Local, non-committed environment overrides
-*.local.tfvars
