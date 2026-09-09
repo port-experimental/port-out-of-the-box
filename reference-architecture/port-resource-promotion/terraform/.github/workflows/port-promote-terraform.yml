@@ -1,174 +1,18 @@
 name: port-promote-terraform
 
-# ─────────────────────────────────────────────────────────────────────────────
-# ENVIRONMENT RULES
-# ─────────────────────────────────────────────────────────────────────────────
-# 1. Four GitHub Environments, decoupled from Port org slugs — the environment
-#    name is a deployment stage, not a Port org identifier:
-#      sandbox      →  not modeled by any job yet (see note below); no protection
-#      integration  →  no branch restriction (must run on pull_request; see note 5)
-#      staging      →  restricted to release tags
-#      production   →  required reviewers + release tags
+# Promotes Port configuration — the committed Terraform root in
+# $TF_WORKING_DIRECTORY — to Integration on merge, then Staging and
+# Production on release.
 #
-# 2. Each active environment (integration, staging, production) must be configured
-#    in GitHub Settings → Environments:
-#      Secrets:    PORT_CLIENT_SECRET, TF_API_TOKEN
-#      Variables:  PORT_CLIENT_ID, TFC_ORGANIZATION
-#                  Optional: PORT_BASE_URL (defaults to https://api.us.port.io;
-#                  set https://api.port.io for EU)
+# Setup, environment configuration, and first-run bootstrap:
+# https://github.com/port-experimental/port-out-of-the-box/tree/main/reference-architecture/port-resource-promotion/terraform
 #
-#    TFC_WORKSPACE_SLUG and TFC_WORKSPACE_TAGS are set in the workflow env: block
-#    below (not per GitHub environment) — same pattern as integration-azure-tf.
-#
-#    TF_API_TOKEN must be a Terraform Cloud *team* token scoped to ONLY this
-#    environment's workspace (one team + token per environment). This confines the
-#    blast radius: an integration token cannot read/apply the staging or production
-#    workspace state. See note 5 for why this matters.
-#
-#    Port org mapping: credentials select the live org (no org slug in HCL).
-#    Example labels (replace with yours): your-org-int / your-org-stg / your-org-prd.
-#
-#    TFC workspaces are derived as ${TFC_WORKSPACE_SLUG}-${environment}
-#    (for example port-config-integration) and created with execution_mode=local.
-#
-#    sandbox is intentionally not wired into any job below. When it's needed, its
-#    secrets/variables must be injected at runtime from sandbox's own environment
-#    config — never hardcoded into the workflow.
-#
-# 3. No repo-level secrets are used. Each job references exactly one environment.
-#
-# 4. Job env (provider + TFC auth via environment variables — no local tfvars):
-#      PORT_CLIENT_ID / PORT_CLIENT_SECRET  — Port OAuth machine-user credentials
-#      PORT_BASE_URL                        — optional; defaults to US
-#                                             (https://api.us.port.io); set
-#                                             https://api.port.io for EU
-#      PORT_BETA_FEATURES_ENABLED=true      — required for page/folder resources
-#      TF_API_TOKEN                         — Terraform Cloud API token
-#      TFC_ORGANIZATION                     — cloud backend org (per environment)
-#      TFC_WORKSPACE_SLUG / TFC_WORKSPACE_TAGS — from workflow env: (pipeline constants)
-#
-# 5. PR-credential model (deliberate divergence from port-promote-port-cli).
-#    Unlike the port-cli pipeline — whose committed JSON export lets a PR preview
-#    run as a credential-free file-vs-file diff (its compare-pr job) — a real
-#    `terraform plan` must read live state (TF_API_TOKEN) and refresh via the Port
-#    provider (PORT_CLIENT_*). A credential-free live plan is therefore impossible.
-#    plan-int runs on pull_request and thus exposes the integration environment's
-#    secrets to whatever code the PR checks out (including .github/actions/**).
-#    Accepted risk, bounded by:
-#      - Fork PRs are excluded (the head.repo.full_name guard) and never receive
-#        environment secrets from GitHub in the first place.
-#      - Only collaborators with push access can open a same-repo branch PR.
-#      - TF_API_TOKEN is workspace-scoped (note 2) so the worst case is exposure of
-#        the lowest environment's credentials, which cannot escalate to stg/prd
-#        (separate per-org Port creds; separate workspace-scoped TFC tokens).
-#      - Optional extra insurance: add required reviewers to the integration
-#        environment so a human approves before PR-authored code runs with secrets.
-#    Because integration must run on pull_request, its environment cannot be
-#    restricted to the main branch (contrast: port-cli restricts integration to main).
-#
-# Shared steps live in .github/actions/, one responsibility each, called in
-# this order by every job:
-#   terraform-setup      validate config, derive the workspace name, install CLI
-#   terraform-workspace  ensure the local-execution TFC workspace — the ONLY step
-#                        that mutates external infrastructure, and the only
-#                        third-party action (SHA-pinned, see that file)
-#   terraform-init       detect generated.tf, init, validate, bootstrap gate
-# then terraform-plan and/or terraform-apply as the job requires.
-#
-# Data flows through declared inputs/outputs, not GITHUB_ENV: terraform-setup
-# emits tf_workspace + tfc_organization, and every later action takes them as
-# inputs and sets TF_WORKSPACE / TF_CLOUD_ORGANIZATION in its own step env.
-#
-# TRIGGER → OPERATION MATRIX
-# ─────────────────────────────────────────────────────────────────────────────
-# The repo-committed Terraform root ($TF_WORKING_DIRECTORY, especially
-# generated.tf) is the single source of truth. There are two independent, trigger-driven flows
-# over that same module:
-#
-#   Promote Port config → Integration
-#   ─────────────────────────────────
-#   pull_request        → plan-int    (preview: HCL vs int state, post PR comment)
-#   push to main        → plan-int    (diff log + saved plan artifact)
-#                       + apply-int   (auto-apply saved plan → int, no approval)
-#   workflow_dispatch   → plan-int    (manual plan)
-#                       + apply-int   (only if apply=true input)
-#
-#   Promote Port config → Staging → Production
-#   ──────────────────────────────────────────
-#   release: published  → plan-stg    (plan: HCL vs stg state)
-#                       + apply-stg   (auto-apply saved plan → stg, no approval)
-#                       + test-stg    (convergence plan + extension point for tests)
-#                       + apply-prd   (requires test-stg success + human approval)
-#                                       plan then apply in one production job
-#
-# Job ids/concurrency groups keep the short int/stg/prd suffix
-# abbreviations congruent with integration/staging/production.
-#
-# FIRST RUN (before generated.tf exists)
-# ─────────────────────────────────────────────────────────────────────────────
-# Bootstrapping needs the TFC workspace to already exist with
-# execution_mode=local, because terraform.tf uses a partial cloud {} block and a
-# workspace auto-created by `terraform init` would default to remote execution.
-# So a run with no generated.tf still provisions the workspace and runs init +
-# validate (proving credentials and state access), then fails with a bootstrap
-# notice in the job summary. The run is RED on purpose: nothing was promoted.
-#
-# Nothing plans or applies on that run. terraform-init failing skips the rest of
-# its job, which skips apply-int; on release it skips apply-stg → test-stg →
-# apply-prd (GitHub applies a default success() check to any if: without a
-# status function).
-#
-# Only integration is reachable this way, deliberately. workflow_dispatch runs
-# against integration, while staging and production are restricted to release
-# tags, so there is no dispatch path that bootstraps them — their workspaces are
-# created by the first release run.
-#
-# SOURCE ARTIFACT
-# ─────────────────────────────────────────────────────────────────────────────
-# $TF_WORKING_DIRECTORY, committed in repo — generated.tf is the Port resource
-# SSoT (hand-generated via terraform-import-generator). Named for the Port
-# account, not any one environment; orgs (int/stg/prd) are where it's deployed.
-#
-# Each job checks out the repo at the commit/tag that triggered it, so the same
-# HCL plan-stg diffed is exactly what apply-stg → test-stg → apply-prd operate on.
-# Immutability comes from the git ref. Saved plan binaries are short-lived
-# workflow artifacts so apply jobs execute the reviewed plan.
-#
-# NOTE — apply-prd gates (both required):
-#   1. needs test-stg.result == success — convergence check must pass before prd
-#      is eligible.
-#   2. production environment protection — human approval before the job runs.
-#   Plan and apply are in the same job because production credentials are
-#   environment-scoped. Reviewers should examine plan-stg and test-stg output
-#   before approving.
-#
-# SETUP CHECKLIST (one-time, in GitHub repository settings)
-# ─────────────────────────────────────────────────────────────────────────────
-# 1. Create four Environments: sandbox, integration, staging, production
-# 2. integration: no branch restriction (plan-int must run on pull_request).
-#                 Optional: add required reviewers as extra insurance (see note 5).
-# 3. staging:     restrict deployment branches/tags to release tags (tag pattern v*)
-# 4. production:  add required reviewers; restrict to release tags (tag pattern v*)
-# 5. In Terraform Cloud, create one team + team API token per environment, each
-#    granted access to ONLY that environment's workspace (port-config-integration,
-#    port-config-staging, port-config-production). Use each as that environment's
-#    TF_API_TOKEN so a leaked lower-env token cannot touch a higher-env workspace.
-# 6. integration/staging/production → add secrets PORT_CLIENT_SECRET + TF_API_TOKEN
-#    and variables PORT_CLIENT_ID, TFC_ORGANIZATION (optional PORT_BASE_URL —
-#    defaults to https://api.us.port.io; set https://api.port.io for EU).
-#    TFC_WORKSPACE_SLUG / TFC_WORKSPACE_TAGS live in workflow env:.
-# 7. Bootstrap Integration state once. Run this workflow via workflow_dispatch
-#    first: it creates the port-config-integration workspace with
-#    execution_mode=local, then fails with a bootstrap notice (expected — see
-#    FIRST RUN above). Then run terraform-import-generator locally against that
-#    workspace, remove *_imports.tf, and commit generated.tf. Subsequent runs
-#    plan and apply normally.
-# 8. Optional repository variable (Settings → Secrets and variables → Variables):
-#      TF_WORKING_DIRECTORY — override the default Terraform root module path
-#      (reference-architecture/port-resource-promotion/terraform/terraform).
-#      Set it to `terraform` when this project sits at your repository root, and
-#      update the on.push / on.pull_request path filters to match.
-# ─────────────────────────────────────────────────────────────────────────────
+# Before you edit:
+#   - TF_WORKING_DIRECTORY and the on.push / on.pull_request path filters must
+#     name the same directory, or changes stop triggering the pipeline.
+#   - plan-int runs on pull_request with integration secrets in scope. The
+#     head.repo.full_name guard is what excludes fork PRs. Do not remove it.
+#   - The first run is red by design until generated.tf is committed.
 
 on:
   pull_request:
@@ -192,31 +36,22 @@ on:
         type: boolean
         default: false
 
-# Least privilege: read-only by default. Jobs that need more elevate their own
-# GITHUB_TOKEN — pull-requests: write only where a PR comment is posted,
-# actions: read only where a saved-plan artifact is downloaded.
+# Least privilege: jobs elevate their own GITHUB_TOKEN only where needed.
 permissions:
   contents: read
 
 env:
   TERRAFORM_VERSION: "1.15.8"
-  # The committed Terraform root module — the single source of truth for every job
-  # below. Ships pointed at this catalog's nested layout; override with a
-  # TF_WORKING_DIRECTORY repository variable when the project moves.
+  # Terraform root module; override with a TF_WORKING_DIRECTORY repository variable.
   TF_WORKING_DIRECTORY: "${{ vars.TF_WORKING_DIRECTORY || 'reference-architecture/port-resource-promotion/terraform/terraform' }}"
   TF_PLAN_FILE: tfplan
   # Required for port_page / port_folder resources from the import generator.
   PORT_BETA_FEATURES_ENABLED: "true"
-  # Diagnostic: Port provider logs rate-limit throttling (remove once confirmed).
-  # PORT_DEBUG_RATE_LIMIT: "true"
-  # Pipeline constants (not per GitHub Environment) — workspaces become
-  # ${TFC_WORKSPACE_SLUG}-${environment} e.g. port-config-integration.
+  # Workspaces become ${TFC_WORKSPACE_SLUG}-${environment}, e.g. port-config-integration.
   TFC_WORKSPACE_SLUG: port-config
   TFC_WORKSPACE_TAGS: port-config
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Promote → Integration
-# ─────────────────────────────────────────────────────────────────────────────
 
 jobs:
 
@@ -283,9 +118,8 @@ jobs:
           if-no-files-found: error
 
       - name: Post PR plan comment
-        # Same-repo PRs only (the job guard already excludes forks); this redundant
-        # condition is self-documenting. PR metadata is passed via env and never
-        # interpolated into the shell body to avoid metacharacter breakout.
+        # Fork guard repeated from the job-level if:, kept explicit here.
+        # PR metadata passes through env, never interpolated into the shell body.
         if: |
           github.event_name == 'pull_request' &&
           github.event.pull_request.head.repo.full_name == github.repository
@@ -370,9 +204,7 @@ jobs:
           summary_heading: "## Terraform Apply → Integration"
           summary_subheading: "**Commit:** [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})"
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Promote → Staging → Production
-# ─────────────────────────────────────────────────────────────────────────────
 
   plan-stg:
     name: "Plan config → Staging"
@@ -527,9 +359,8 @@ jobs:
           expect_no_changes: "true"
           summary_heading: "## Terraform Convergence → Staging"
 
-      # EXTEND: add additional Staging validation tests here.
-      # Examples: Port API reachability, specific blueprint/action existence,
-      # integration health checks, custom validation scripts.
+      # EXTEND: add Staging validation here — Port API reachability,
+      # blueprint/action assertions, integration health checks.
       - name: Additional tests
         run: |
           echo "Convergence check passed. Add functional tests here as needed."
@@ -572,7 +403,6 @@ jobs:
           tf_workspace: ${{ steps.setup.outputs.tf_workspace }}
           tfc_organization: ${{ steps.setup.outputs.tfc_organization }}
 
-      # apply-prd runs only after test-stg succeeds and production approval.
       - uses: ./.github/actions/terraform-plan
         with:
           working_directory: ${{ env.TF_WORKING_DIRECTORY }}
