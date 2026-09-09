@@ -1,0 +1,50 @@
+name: Terraform Cloud workspace
+description: >
+  Ensure a local-execution Terraform Cloud workspace exists for this environment.
+  The only step in this project that mutates external infrastructure, and the only
+  third-party action dependency, isolated here so both are auditable in one file.
+
+inputs:
+  workspace_name:
+    description: TFC workspace to ensure (from terraform-setup's tf_workspace output).
+    required: true
+  organization:
+    description: Terraform Cloud organization that owns the workspace.
+    required: true
+  workspace_tags:
+    description: Tags applied to the workspace when it is created.
+    required: true
+  tfc_token:
+    description: Terraform Cloud API token, scoped to this environment's workspace.
+    required: true
+  create_if_missing:
+    description: >
+      When "true" (default), create the workspace if it does not exist.
+      When "false", allow a missing workspace without failing (caller may gate later).
+    required: false
+    default: "true"
+
+outputs:
+  workspace_exists:
+    description: Whether the TFC workspace exists after this action.
+    value: ${{ steps.ensure_workspace.outputs.workspace_exists }}
+  workspace_id:
+    description: Terraform Cloud workspace ID when known.
+    value: ${{ steps.ensure_workspace.outputs.workspace_id }}
+
+runs:
+  using: composite
+  steps:
+    # Pinned to a full-length commit SHA: this runs with TF_API_TOKEN and Port
+    # credentials in scope, including in plan-int on pull_request, where a moved
+    # tag would be enough to exfiltrate them.
+    - name: Ensure Terraform Cloud workspace
+      id: ensure_workspace
+      uses: gossamer-labs/gha-ensure-tfc-workspace@4b04abd819ae5b6091c93cb39bba09e3e1b8470d # v1.1.0
+      with:
+        tfc_token: ${{ inputs.tfc_token }}
+        organization: ${{ inputs.organization }}
+        workspace_name: ${{ inputs.workspace_name }}
+        workspace_tags: ${{ inputs.workspace_tags }}
+        execution_mode: local
+        create_if_missing: ${{ inputs.create_if_missing }}

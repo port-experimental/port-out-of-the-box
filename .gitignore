@@ -1,46 +1,54 @@
-# OS
+## OS
 .DS_Store
 Thumbs.db
 
-# Secrets / local env
+## Secrets / local
 .env
 .env.*
 !.env.example
 *.pem
 *.key
 
-# Editors / IDEs
+## IDEs
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
 
-# Python
+## Python
 __pycache__/
 *.py[cod]
 .venv/
 venv/
 
-# Node
+## Node
 node_modules/
 dist/
 *.tsbuildinfo
 
-# Go
+## Go
 bin/
 *.exe
 
-# Terraform (project-specific ignores may add more)
+## Terraform
+# Keep .terraform.lock.hcl committed (provider checksums for reproducible runs).
 .terraform/
+.terraform.tfstate
+.terraform.tfstate.*
 *.tfstate
 *.tfstate.*
-*.tfplan
 crash.log
+crash.*.log
 override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
+tfplan
+*.tfplan
+*.tfplan.json
+*.local.tfvars
 
+## GitHub Actions
 # Disable if testing code directly from this repo
 /.github/

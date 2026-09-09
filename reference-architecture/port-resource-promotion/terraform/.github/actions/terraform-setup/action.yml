@@ -1,43 +1,31 @@
 name: Terraform setup
 description: >
-  Validate Port/TFC environment config, install Terraform, ensure a local-execution
-  Terraform Cloud workspace, then init and validate the module.
+  Validate Port/TFC environment config, derive the workspace name, and install
+  Terraform. Read-only and local: provisioning lives in terraform-workspace,
+  init/validate in terraform-init.
 
 inputs:
-  working_directory:
-    description: Path to the Terraform root module.
-    required: false
-    default: terraform
   terraform_version:
     description: Terraform CLI version for hashicorp/setup-terraform.
     required: true
-  create_if_missing:
-    description: >
-      When "true" (default), create the TFC workspace if it does not exist.
-      When "false", allow missing workspaces without failing (caller may gate later).
-    required: false
-    default: "true"
-  require_generated:
-    description: >
-      When "true" (default), fail if generated.tf is missing from working_directory
-      so an empty scaffold cannot plan/apply against a live Port org.
-    required: false
-    default: "true"
+  tfc_token:
+    description: Terraform Cloud API token, written to the CLI credentials file.
+    required: true
 
 outputs:
-  workspace_exists:
-    description: Whether the TFC workspace exists after this action.
-    value: ${{ steps.ensure_workspace.outputs.workspace_exists }}
-  workspace_id:
-    description: Terraform Cloud workspace ID when known.
-    value: ${{ steps.ensure_workspace.outputs.workspace_id }}
   tf_workspace:
     description: Derived TFC workspace name (${TFC_WORKSPACE_SLUG}-${ENVIRONMENT}).
     value: ${{ steps.derive.outputs.tf_workspace }}
+  tfc_organization:
+    description: Terraform Cloud organization this environment targets.
+    value: ${{ steps.derive.outputs.tfc_organization }}
 
 runs:
   using: composite
   steps:
+    # Reads job env rather than inputs: PORT_CLIENT_* must be in the job
+    # environment for the Port provider itself, so only values an action
+    # consumes are promoted to inputs.
     - name: Validate Port and TFC config
       shell: bash
       run: |
@@ -57,20 +45,8 @@ runs:
           exit 1
         fi
 
-    - name: Require generated.tf
-      if: ${{ inputs.require_generated == 'true' }}
-      shell: bash
-      env:
-        WORKING_DIRECTORY: ${{ inputs.working_directory }}
-      run: |
-        set -euo pipefail
-        if [ ! -f "${WORKING_DIRECTORY}/generated.tf" ]; then
-          echo "::error::Missing ${WORKING_DIRECTORY}/generated.tf"
-          echo "Generate Port resources with terraform-import-generator, bootstrap Integration state,"
-          echo "remove *_imports.tf, then commit generated.tf before enabling promotion."
-          exit 1
-        fi
-
+    # Emits outputs only. Downstream actions take TF_WORKSPACE /
+    # TF_CLOUD_ORGANIZATION as declared inputs instead of reading GITHUB_ENV.
     - name: Derive workspace name
       id: derive
       shell: bash
@@ -78,8 +54,7 @@ runs:
         set -euo pipefail
         TF_WORKSPACE="${TFC_WORKSPACE_SLUG:?}-${ENVIRONMENT:?}"
         echo "tf_workspace=${TF_WORKSPACE}" >> "${GITHUB_OUTPUT}"
-        echo "TF_WORKSPACE=${TF_WORKSPACE}" >> "${GITHUB_ENV}"
-        echo "TF_CLOUD_ORGANIZATION=${TFC_ORGANIZATION}" >> "${GITHUB_ENV}"
+        echo "tfc_organization=${TFC_ORGANIZATION:?}" >> "${GITHUB_OUTPUT}"
         echo "Derived TF_WORKSPACE=${TF_WORKSPACE}"
 
     - name: Setup Terraform
@@ -87,29 +62,4 @@ runs:
       with:
         terraform_version: ${{ inputs.terraform_version }}
         terraform_wrapper: false
-        cli_config_credentials_token: ${{ env.TF_API_TOKEN }}
-
-    - name: Ensure Terraform Cloud workspace
-      id: ensure_workspace
-      uses: gossamer-labs/gha-ensure-tfc-workspace@v1.1.0
-      with:
-        tfc_token: ${{ env.TF_API_TOKEN }}
-        organization: ${{ env.TFC_ORGANIZATION }}
-        workspace_name: ${{ steps.derive.outputs.tf_workspace }}
-        workspace_tags: ${{ env.TFC_WORKSPACE_TAGS }}
-        execution_mode: local
-        create_if_missing: ${{ inputs.create_if_missing }}
-
-    - name: Terraform init
-      shell: bash
-      working-directory: ${{ inputs.working_directory }}
-      run: |
-        set -euo pipefail
-        terraform init -input=false
-
-    - name: Terraform validate
-      shell: bash
-      working-directory: ${{ inputs.working_directory }}
-      run: |
-        set -euo pipefail
-        terraform validate
+        cli_config_credentials_token: ${{ inputs.tfc_token }}

@@ -8,6 +8,12 @@ inputs:
     description: Path to the Terraform root module.
     required: false
     default: terraform
+  tf_workspace:
+    description: TFC workspace name (from terraform-setup's tf_workspace output).
+    required: true
+  tfc_organization:
+    description: Terraform Cloud organization backing the cloud {} block.
+    required: true
   plan_file:
     description: Relative path (within working_directory) for the binary plan.
     required: false
@@ -49,6 +55,8 @@ runs:
       env:
         PLAN_FILE: ${{ inputs.plan_file }}
         EXPECT_NO_CHANGES: ${{ inputs.expect_no_changes }}
+        TF_WORKSPACE: ${{ inputs.tf_workspace }}
+        TF_CLOUD_ORGANIZATION: ${{ inputs.tfc_organization }}
       run: |
         set -euo pipefail
 

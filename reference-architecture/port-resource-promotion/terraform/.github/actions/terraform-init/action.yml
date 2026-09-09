@@ -1,0 +1,93 @@
+name: Terraform init
+description: >
+  Initialize and validate the module, then gate on generated.tf. Runs after
+  terraform-workspace so a first-time run still provisions the workspace and
+  proves credentials before failing with bootstrap instructions.
+
+inputs:
+  working_directory:
+    description: Path to the Terraform root module.
+    required: false
+    default: terraform
+  tf_workspace:
+    description: TFC workspace name (from terraform-setup's tf_workspace output).
+    required: true
+  tfc_organization:
+    description: Terraform Cloud organization backing the cloud {} block.
+    required: true
+  require_generated:
+    description: >
+      When "true" (default), fail once generated.tf is found missing, after the
+      workspace exists and init has succeeded, so an empty scaffold cannot
+      plan/apply against a live Port org. When "false", warn instead and let the
+      caller gate on the generated_exists output.
+    required: false
+    default: "true"
+
+outputs:
+  generated_exists:
+    description: '"true" when generated.tf is committed in working_directory.'
+    value: ${{ steps.detect_generated.outputs.generated_exists }}
+
+runs:
+  using: composite
+  steps:
+    - name: Detect generated.tf
+      id: detect_generated
+      shell: bash
+      env:
+        WORKING_DIRECTORY: ${{ inputs.working_directory }}
+      run: |
+        set -euo pipefail
+        if [ -f "${WORKING_DIRECTORY}/generated.tf" ]; then
+          echo "generated_exists=true" >> "${GITHUB_OUTPUT}"
+        else
+          echo "generated_exists=false" >> "${GITHUB_OUTPUT}"
+        fi
+
+    # Safe without generated.tf: only providers.tf and terraform.tf are
+    # committed (*_imports.tf is gitignored), and running both here proves the
+    # token, org, and workspace work before any manual bootstrap.
+    - name: Terraform init
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        TF_WORKSPACE: ${{ inputs.tf_workspace }}
+        TF_CLOUD_ORGANIZATION: ${{ inputs.tfc_organization }}
+      run: |
+        set -euo pipefail
+        terraform init -input=false
+
+    - name: Terraform validate
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        TF_WORKSPACE: ${{ inputs.tf_workspace }}
+        TF_CLOUD_ORGANIZATION: ${{ inputs.tfc_organization }}
+      run: |
+        set -euo pipefail
+        terraform validate
+
+    - name: Bootstrap required
+      if: steps.detect_generated.outputs.generated_exists != 'true'
+      shell: bash
+      env:
+        WORKING_DIRECTORY: ${{ inputs.working_directory }}
+        TFC_WORKSPACE_NAME: ${{ inputs.tf_workspace }}
+        REQUIRE_GENERATED: ${{ inputs.require_generated }}
+      run: |
+        set -euo pipefail
+        {
+          echo "## Bootstrap required → \`${ENVIRONMENT:-unknown}\`"
+          echo ""
+          echo "Workspace \`${TFC_WORKSPACE_NAME}\` exists with \`execution_mode=local\` and \`terraform init\` succeeded, so TFC and Port credentials are working."
+          echo ""
+          echo "No \`${WORKING_DIRECTORY}/generated.tf\` is committed, so nothing was planned or applied."
+          echo ""
+          echo "Next: bootstrap state locally with \`TF_WORKSPACE=${TFC_WORKSPACE_NAME}\`, then commit \`generated.tf\`."
+        } >> "${GITHUB_STEP_SUMMARY}"
+        if [ "${REQUIRE_GENERATED}" = "true" ]; then
+          echo "::error::Missing ${WORKING_DIRECTORY}/generated.tf — workspace ${TFC_WORKSPACE_NAME} is ready, bootstrap it locally then commit generated.tf."
+          exit 1
+        fi
+        echo "::warning::Missing ${WORKING_DIRECTORY}/generated.tf and require_generated=false — caller must gate plan/apply on the generated_exists output."
