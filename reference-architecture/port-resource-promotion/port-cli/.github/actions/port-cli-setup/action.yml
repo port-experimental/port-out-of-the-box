@@ -30,4 +30,4 @@ runs:
 
     - name: Install port-cli
       shell: bash
-      run: npm install -g @port-experimental/port-cli@${PORT_CLI_VERSION:?PORT_CLI_VERSION is not set}
+      run: npm install -g @port-labs/port-cli@${PORT_CLI_VERSION:?PORT_CLI_VERSION is not set}
