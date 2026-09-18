@@ -29,15 +29,15 @@ Integration and the release flow are independent — promoting to Staging/Produc
 
 This directory contains:
 
-- [`.github/workflows/port-promote-port-cli.yml`](.github/workflows/port-promote-port-cli.yml) — the promotion pipeline.
-- `.github/actions/port-cli-setup` — validates credentials and installs the Port CLI.
-- `.github/actions/port-cli-compare` — runs `port compare` and writes a diff summary (and optional PR comment).
-- `.github/actions/port-cli-import` — runs `port import` and writes an import summary.
+- [`.github/workflows/port-promote-port-cli.yml`](../../../.github/workflows/port-promote-port-cli.yml) — the promotion pipeline.
+- [`.github/actions/port-cli-setup`](../../../.github/actions/port-cli-setup) — validates credentials and installs the Port CLI.
+- [`.github/actions/port-cli-compare`](../../../.github/actions/port-cli-compare) — runs `port compare` and writes a diff summary (and optional PR comment).
+- [`.github/actions/port-cli-import`](../../../.github/actions/port-cli-import) — runs `port import` and writes an import summary.
 - [`port-config-port-cli/`](port-config-port-cli/) — where your exported `port-config.json` lives.
 
 ## Use it in your repo
 
-1. **Copy** the contents of this directory into your repo (the `.github/` folder and `port-config-port-cli/`).
+1. **Copy** the root `.github/` folder and `port-config-port-cli/` directory into your repo.
 2. **Create the three GitHub Environments the pipeline uses:** `integration`, `staging`, `production`.
    Environment names are just deployment stages — rename them to whatever convention your org uses. The Port org each stage targets is determined by its credentials (`PORT_CLIENT_ID` / `PORT_CLIENT_SECRET`), not the environment name.
 3. **Add protections:**
