@@ -34,24 +34,18 @@ locals {
           model    = "claude-sonnet-5"
           system_prompt = join(" ", [
             "You are an incident triage analyst.",
-            "Investigate the given incident using Port's context lake and any relevant Notion runbooks or postmortem docs,",
+            "Investigate the given incident using Port's context lake,",
             "then produce a concise, structured triage summary.",
           ])
           user_prompt = join(" ", [
             "Triage incident \"{{ .outputs.trigger.incident }}\".",
-            "Look up the incident entity (and its related service) in Port, then search Notion for any runbooks,",
-            "on-call docs, or past postmortems relevant to this service or failure mode.",
-            "Produce a triage summary covering: what's happening, likely severity, and recommended next steps.",
+            "Look up the incident entity and its related service in Port.",
+            "Produce a triage summary covering what is happening, likely severity, root cause, and recommended next steps.",
+            "Set severity to one of critical, high, medium, or low.",
           ])
           tools = [
             "list_blueprints",
             "list_entities",
-            "notion_.*",
-          ]
-          mcp_servers = [
-            {
-              identifier = "notion"
-            }
           ]
           output_schema = jsonencode({
             type = "object"
@@ -62,35 +56,38 @@ locals {
               severity = {
                 type = "string"
               }
+              root_cause = {
+                type = "string"
+              }
               recommended_action = {
                 type = "string"
               }
             }
-            required = ["summary", "severity"]
+            required = ["summary", "severity", "root_cause", "recommended_action"]
           })
         }
       },
       {
-        identifier = "notify-slack"
-        title      = "Notify Slack"
+        identifier = "update-incident"
+        title      = "Update Incident"
 
-        webhook = {
-          url          = "https://slack.com/api/chat.postMessage"
-          method       = "POST"
-          synchronized = true
-          agent        = false
-          on_timeout   = "fail"
-          on_failure   = "continue"
-          headers = {
-            Content-Type  = "application/json"
-            Authorization = "Bearer {{ .secrets[\"SLACK_BOT_TOKEN\"] }}"
-          }
-          body = {
-            channel = "#incidents"
-            text    = <<-EOT
-              *Incident triage for {{ .outputs.trigger.incident }}* (severity: {{ .outputs["ai-triage"].response | fromjson | .severity }})
-              {{ .outputs["ai-triage"].response | fromjson | .summary }}
-            EOT
+        upsert_entity = {
+          blueprint_identifier = "incident"
+          on_failure           = "terminate"
+          mapping = {
+            identifier = "{{ .outputs.trigger.incident }}"
+            properties = {
+              status     = "investigating"
+              severity   = "{{ .outputs[\"ai-triage\"].response | fromjson | .severity }}"
+              root_cause = "{{ .outputs[\"ai-triage\"].response | fromjson | .root_cause }}"
+              analysis   = <<-EOT
+                {{ .outputs["ai-triage"].response | fromjson | .summary }}
+
+                ## Recommended action
+
+                {{ .outputs["ai-triage"].response | fromjson | .recommended_action }}
+              EOT
+            }
           }
         }
       },
@@ -103,7 +100,7 @@ locals {
       },
       {
         source_identifier = "ai-triage"
-        target_identifier = "notify-slack"
+        target_identifier = "update-incident"
       },
     ]
   }
