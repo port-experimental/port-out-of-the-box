@@ -10,7 +10,7 @@ Pipeline environment variables
         └── terraform-port-scorecard child module
               └── Production readiness scorecard
                     ├── Bronze: has an owning team
-                    ├── Silver: has a README
+                    ├── Silver: has a runbook URL
                     └── Gold: has a repository URL
 ```
 
@@ -20,7 +20,7 @@ The root owns provider configuration and the scorecard rule definitions. The chi
 
 - Terraform >= 1.16
 - `port-labs/port-labs` provider >= 2.32.2
-- A `service` blueprint with `readme` and `url` properties
+- A `service` blueprint with `runbook_url` and `url` properties
 - `PORT_CLIENT_ID` and `PORT_CLIENT_SECRET` available as protected pipeline environment variables
 
 ## Configuration

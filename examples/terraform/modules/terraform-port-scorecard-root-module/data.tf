@@ -16,14 +16,14 @@ locals {
         }
       },
       {
-        identifier = "has_readme"
-        title      = "Has a README"
+        identifier = "has_runbook"
+        title      = "Has a runbook URL"
         level      = "Silver"
         query = {
           combinator = "and"
           conditions = [
             jsonencode({
-              property = "readme"
+              property = "runbook_url"
               operator = "isNotEmpty"
             }),
           ]
