@@ -115,6 +115,7 @@ locals {
               * PR #{{ .outputs.trigger.pr_number }} — {{ .outputs.trigger.pr_title }}
               * Merge SHA: {{ .outputs.trigger.merge_sha }}
               * Merged by: {{ .outputs.trigger.merged_by }}
+              * Aikido: related vulnerability will be marked Fixed when a catalog match is found
             EOT
           }
           on_timeout = "fail"
@@ -142,6 +143,96 @@ locals {
           }
         }
       },
+      {
+        identifier  = "resolve_aikido"
+        title       = "Resolve related Aikido vulnerability"
+        icon        = "AI"
+        description = "Match the closed Jira/PR to an aikidoVulnerability catalog entity when possible."
+
+        ai = {
+          system_prompt = "You match a closed Jira SD issue / merged PR to an aikidoVulnerability Port entity. Prefer a CVE ID extracted from pr_title, branch, or jira key context. Search aikidoVulnerability entities with list_entities. Return only JSON matching the output schema. If no confident match exists, set aikido_identifier to an empty string."
+          user_prompt   = <<-EOT
+            A bugfix pull request was merged and the related Jira issue was closed.
+
+            Context:
+            - Jira issue key: {{ .outputs.trigger.jira_issue_key }}
+            - PR title: {{ .outputs.trigger.pr_title }}
+            - Branch: {{ .outputs.trigger.branch }}
+            - Repository: {{ .outputs.trigger.repository }}
+            - PR URL: {{ .outputs.trigger.pr_url }}
+
+            Tasks:
+            1. Extract a CVE ID if present in the PR title, branch, or related context.
+            2. Search aikidoVulnerability entities for the best match (CVE, title, identifier, related Jira/repo).
+            3. Return the matched entity identifier, CVE ID (or empty), and a short match_reason.
+
+            Return JSON fields: aikido_identifier, cve_id, match_reason.
+          EOT
+          tools = [
+            "list_blueprints",
+            "list_entities",
+          ]
+          output_schema = jsonencode({
+            type = "object"
+            properties = {
+              aikido_identifier = {
+                type = "string"
+              }
+              cve_id = {
+                type = "string"
+              }
+              match_reason = {
+                type = "string"
+              }
+            }
+            required = ["aikido_identifier", "cve_id", "match_reason"]
+          })
+        }
+
+        variables = {
+          response           = "{{ .result.response }}"
+          aikido_identifier  = "{{ (.result.response | if type == \"string\" then fromjson else . end).aikido_identifier // \"\" }}"
+          cve_id             = "{{ (.result.response | if type == \"string\" then fromjson else . end).cve_id // \"\" }}"
+          match_reason       = "{{ (.result.response | if type == \"string\" then fromjson else . end).match_reason // \"\" }}"
+        }
+      },
+      {
+        identifier = "has_aikido"
+        title      = "Matched Aikido vulnerability?"
+        icon       = "Vulnerability"
+
+        condition = {
+          outlets = [
+            {
+              identifier = "with_aikido"
+              title      = "Has Aikido match"
+              expression = "(.outputs.resolve_aikido.aikido_identifier // \"\") != \"\""
+            },
+            {
+              identifier = "without_aikido"
+              title      = "No Aikido match"
+              expression = "(.outputs.resolve_aikido.aikido_identifier // \"\") == \"\""
+            },
+          ]
+        }
+      },
+      {
+        identifier  = "close_aikido"
+        title       = "Mark Aikido vulnerability Fixed"
+        icon        = "Vulnerability"
+        description = "Set the matched aikidoVulnerability status to Fixed after the remediation PR merged."
+
+        upsert_entity = {
+          blueprint_identifier = "aikidoVulnerability"
+          on_failure           = "continue"
+          mapping = {
+            identifier = "{{ .outputs.resolve_aikido.aikido_identifier }}"
+            properties = {
+              status = "Fixed"
+            }
+          }
+        }
+      },
     ]
 
     connections = [
@@ -156,6 +247,19 @@ locals {
       {
         source_identifier = "comment_jira"
         target_identifier = "upsert_issue_status"
+      },
+      {
+        source_identifier = "upsert_issue_status"
+        target_identifier = "resolve_aikido"
+      },
+      {
+        source_identifier = "resolve_aikido"
+        target_identifier = "has_aikido"
+      },
+      {
+        source_identifier        = "has_aikido"
+        target_identifier        = "close_aikido"
+        source_outlet_identifier = "with_aikido"
       },
     ]
   }

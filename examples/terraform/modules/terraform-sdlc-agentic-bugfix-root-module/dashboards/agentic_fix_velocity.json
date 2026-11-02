@@ -231,7 +231,7 @@
       "type": "entities-number-chart",
       "title": "Open SD issues",
       "icon": "Alert",
-      "description": "SD issues not yet Done \u2014 remaining work in the fix pipeline",
+      "description": "SD issues with no resolution date — unresolved work in the fix pipeline (status is unreliable when Done sync lags)",
       "unit": "none",
       "chartType": "countEntities",
       "blueprint": "jiraIssue",
@@ -244,9 +244,8 @@
             "value": "SD"
           },
           {
-            "property": "status",
-            "operator": "!=",
-            "value": "Done"
+            "operator": "isEmpty",
+            "property": "resolutionDate"
           }
         ]
       },

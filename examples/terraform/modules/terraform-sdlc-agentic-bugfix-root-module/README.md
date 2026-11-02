@@ -6,7 +6,7 @@ for the Agentic Fix Velocity dashboard. All three workflows use category **`Agen
 
 1. `aikido_vuln_cursor_triage_jira` — Aikido vulnerability → Cursor remediation → Jira SD
 2. `jira_sd_teams_cursor_autofix` — Jira SD → Teams → Cursor triage → Cursor fix
-3. `jira_close_on_pr_merged` — GitHub Actions callback → close Jira + sync Port entity
+3. `jira_close_on_pr_merged` — GitHub Actions callback → close Jira + sync Port entity + close matched Aikido finding
 4. `agentic_fix_velocity` — DORA-aligned discovery-to-fix velocity dashboard
 
 ## Pipeline overview
@@ -19,7 +19,7 @@ Aikido → SD ticket → Cursor autofix → PR merge → Done
 | ----- | -------- | ------------ |
 | Detect | `aikido_vuln_cursor_triage_jira` | New Aikido vuln → impact assess → optional Cursor PR → open Jira SD ticket |
 | Autofix | `jira_sd_teams_cursor_autofix` | New SD issue → Teams notify → Cursor triage + fix PR on `bugfix/<KEY>` |
-| Close | `jira_close_on_pr_merged` | GHA on PR merge → Jira Done + comment + Port entity sync |
+| Close | `jira_close_on_pr_merged` | GHA on PR merge → Jira Done + comment + Port entity sync + Aikido Fixed |
 
 ## Architecture
 
@@ -127,7 +127,7 @@ flowchart TD
 
 **Trigger:** Self-serve (invoked from GitHub Actions when a `bugfix/*` PR merges)
 
-**Flow:** `trigger → close_jira → comment_jira → upsert_issue_status`
+**Flow:** `trigger → close_jira → comment_jira → upsert_issue_status → resolve_aikido → has_aikido → (with_aikido) close_aikido`
 
 ```mermaid
 flowchart TD
@@ -135,16 +135,23 @@ flowchart TD
   close_jira[close_jira]
   comment_jira[comment_jira]
   upsert_issue_status[upsert_issue_status]
+  resolve_aikido[resolve_aikido]
+  has_aikido{has_aikido}
+  close_aikido[close_aikido]
 
-  trigger --> close_jira --> comment_jira --> upsert_issue_status
+  trigger --> close_jira --> comment_jira --> upsert_issue_status --> resolve_aikido --> has_aikido
+  has_aikido -->|with_aikido| close_aikido
 ```
 
 | Node | Type | Role |
 | ---- | ---- | ---- |
 | `trigger` | SELF_SERVE_TRIGGER | Inputs: jira_issue_key, repository, pr_url, branch, merge_sha, etc. |
 | `close_jira` | INTEGRATION_ACTION (Jira) | Transition issue to Done |
-| `comment_jira` | WEBHOOK (Jira) | Comment with PR/merge metadata; continues on failure |
+| `comment_jira` | WEBHOOK (Jira) | Comment with PR/merge metadata (+ Aikido Fixed note); continues on failure |
 | `upsert_issue_status` | UPSERT_ENTITY | Sets Port `jiraIssue` status to Done; continues on failure |
+| `resolve_aikido` | AI | Match Jira/PR to `aikidoVulnerability` via CVE/title/catalog search |
+| `has_aikido` | CONDITION | Branches when `aikido_identifier` is non-empty |
+| `close_aikido` | UPSERT_ENTITY | Sets matched `aikidoVulnerability` status to Fixed; continues on failure |
 
 ---
 

@@ -276,6 +276,32 @@ locals {
           issueSelf = "{{ .result.response.data.self }}"
         }
       },
+      {
+        identifier  = "upsert_jira_issue"
+        title       = "Sync Port jiraIssue (trigger autofix)"
+        icon        = "Jira"
+        description = "Create the Port jiraIssue entity immediately so jira_sd_teams_cursor_autofix fires without waiting for Jira integration sync."
+
+        upsert_entity = {
+          blueprint_identifier = "jiraIssue"
+          on_failure           = "continue"
+          mapping = {
+            identifier = "{{ .outputs.create_jira_with_cursor.issueKey // .outputs.create_jira_without_cursor.issueKey }}"
+            title      = "[Aikido {{ .outputs.trigger.diff.after.properties.severity }}] {{ .outputs.trigger.diff.after.title }} — {{ .outputs.fetch_service.title }}"
+            properties = {
+              status      = "To Do"
+              summary     = "[Aikido {{ .outputs.trigger.diff.after.properties.severity }}] {{ .outputs.trigger.diff.after.title }} — {{ .outputs.fetch_service.title }}"
+              description = "{{ .outputs.assess_impact.impact_summary }}"
+              issueType   = "Task"
+              url         = "https://getport.atlassian.net/browse/{{ .outputs.create_jira_with_cursor.issueKey // .outputs.create_jira_without_cursor.issueKey }}"
+            }
+            relations = {
+              project = "SD"
+              service = "{{ .outputs.fetch_service.identifier }}"
+            }
+          }
+        }
+      },
     ]
 
     connections = [
@@ -304,6 +330,14 @@ locals {
       {
         source_identifier = "cursor_triage"
         target_identifier = "create_jira_with_cursor"
+      },
+      {
+        source_identifier = "create_jira_with_cursor"
+        target_identifier = "upsert_jira_issue"
+      },
+      {
+        source_identifier = "create_jira_without_cursor"
+        target_identifier = "upsert_jira_issue"
       },
     ]
   }

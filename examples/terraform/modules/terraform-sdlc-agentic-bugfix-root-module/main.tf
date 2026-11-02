@@ -4,7 +4,7 @@ module "aikido_vuln_cursor_triage_jira" {
   identifier                = "aikido_vuln_cursor_triage_jira"
   title                     = "Aikido Vulnerability → Cursor Triage → Jira SD"
   icon                      = "Vulnerability"
-  description               = "When an Aikido vulnerability is created, resolve the impacted service, run a Cursor cloud agent to triage and open a remediation PR when possible, and open a Jira ticket in SD with impact and severity."
+  description               = "When an Aikido vulnerability is created, resolve the impacted service, run a Cursor cloud agent to triage and open a remediation PR when possible, open a Jira ticket in SD, and sync a Port jiraIssue entity so jira_sd_teams_cursor_autofix can trigger immediately."
   category                  = "Agentic Triage"
   allow_anyone_to_view_runs = true
   nodes                     = local.aikido_vuln_cursor_triage_jira.nodes
@@ -30,7 +30,7 @@ module "jira_close_on_pr_merged" {
   identifier                = "jira_close_on_pr_merged"
   title                     = "Close Jira on PR Merge"
   icon                      = "Jira"
-  description               = "Called from GitHub Actions when a bugfix/* pull request is merged. Transitions the associated Jira issue to Done and comments the merge status (PR URL, branch, SHA, merger)."
+  description               = "Called from GitHub Actions when a bugfix/* pull request is merged. Transitions the associated Jira issue to Done, comments the merge status (PR URL, branch, SHA, merger), and marks a related Aikido vulnerability Fixed when a catalog match is found."
   category                  = var.category
   allow_anyone_to_view_runs = true
   nodes                     = local.jira_close_on_pr_merged.nodes
