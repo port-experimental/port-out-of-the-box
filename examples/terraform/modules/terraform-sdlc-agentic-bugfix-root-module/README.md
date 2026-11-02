@@ -4,8 +4,8 @@ Composes the `terraform-port-workflow` child module three times to manage the li
 Port EU SDLC agentic bugfix workflows, plus a `terraform-port-dashboard` child module
 for the Agentic Fix Velocity dashboard. All three workflows use category **`Agentic Triage`**.
 
-1. `aikido_vuln_cursor_triage_jira` — Aikido vulnerability → Cursor remediation → Jira SD
-2. `jira_sd_teams_cursor_autofix` — Jira SD → Teams → Cursor triage → Cursor fix
+1. `aikido_vuln_cursor_triage_jira` — Aikido vulnerability → assess impact → Jira SD (no Cursor PR)
+2. `jira_sd_teams_cursor_autofix` — Jira SD → Teams → Cursor triage → Cursor fix (owns the remediation PR)
 3. `jira_close_on_pr_merged` — GitHub Actions callback → close Jira + sync Port entity + close matched Aikido finding
 4. `agentic_fix_velocity` — DORA-aligned discovery-to-fix velocity dashboard
 
@@ -17,7 +17,7 @@ Aikido → SD ticket → Cursor autofix → PR merge → Done
 
 | Stage | Workflow | What happens |
 | ----- | -------- | ------------ |
-| Detect | `aikido_vuln_cursor_triage_jira` | New Aikido vuln → impact assess → optional Cursor PR → open Jira SD ticket |
+| Detect | `aikido_vuln_cursor_triage_jira` | New Aikido vuln → impact assess → open Jira SD ticket → upsert `jiraIssue` (no Cursor/PR) |
 | Autofix | `jira_sd_teams_cursor_autofix` | New SD issue → Teams notify → Cursor triage + fix PR on `bugfix/<KEY>` |
 | Close | `jira_close_on_pr_merged` | GHA on PR merge → Jira Done + comment + Port entity sync + Aikido Fixed |
 
@@ -57,7 +57,9 @@ git::https://github.com/port-experimental/terraform-port-dashboard.git?ref=1.0.0
 
 **Trigger:** `ENTITY_CREATED` on blueprint `aikidoVulnerability`
 
-**Flow:** `trigger → fetch_service → assess_impact → has_repo → (with_repo) cursor_triage → create_jira_with_cursor | (without_repo) create_jira_without_cursor`
+**Flow:** `trigger → fetch_service → assess_impact → has_repo → (with_repo) create_jira_with_repo | (without_repo) create_jira_without_repo → upsert_jira_issue`
+
+Cursor remediation PRs are **not** opened here; `jira_sd_teams_cursor_autofix` owns the single PR after the Jira upsert.
 
 ```mermaid
 flowchart TD
@@ -65,13 +67,13 @@ flowchart TD
   fetch_service[fetch_service]
   assess_impact[assess_impact]
   has_repo{has_repo}
-  cursor_triage[cursor_triage]
-  create_jira_with_cursor[create_jira_with_cursor]
-  create_jira_without_cursor[create_jira_without_cursor]
+  create_jira_with_repo[create_jira_with_repo]
+  create_jira_without_repo[create_jira_without_repo]
+  upsert_jira_issue[upsert_jira_issue]
 
   trigger --> fetch_service --> assess_impact --> has_repo
-  has_repo -->|with_repo| cursor_triage --> create_jira_with_cursor
-  has_repo -->|without_repo| create_jira_without_cursor
+  has_repo -->|with_repo| create_jira_with_repo --> upsert_jira_issue
+  has_repo -->|without_repo| create_jira_without_repo --> upsert_jira_issue
 ```
 
 | Node | Type | Role |
@@ -80,9 +82,9 @@ flowchart TD
 | `fetch_service` | WEBHOOK | Loads related `service` (github_url, default_branch, criticality); continues on failure |
 | `assess_impact` | AI | Structured impact/severity/actions from vuln + service context |
 | `has_repo` | CONDITION | Branches on whether `github_url` is present |
-| `cursor_triage` | INTEGRATION_ACTION (Cursor) | Remediates via PR into service `default_branch`; continues on failure |
-| `create_jira_with_cursor` | WEBHOOK (Jira) | Opens SD ticket including Cursor agent/PR links |
-| `create_jira_without_cursor` | WEBHOOK (Jira) | Opens SD ticket noting Cursor was skipped (no repo) |
+| `create_jira_with_repo` | WEBHOOK (Jira) | Opens SD ticket with assess_impact text; notes autofix will open PR via `jira_sd_teams_cursor_autofix` |
+| `create_jira_without_repo` | WEBHOOK (Jira) | Opens SD ticket noting no repo (autofix will skip Cursor) |
+| `upsert_jira_issue` | UPSERT_ENTITY | Syncs Port `jiraIssue` so autofix can trigger immediately |
 
 ---
 

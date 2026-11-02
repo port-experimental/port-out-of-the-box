@@ -130,51 +130,7 @@ locals {
         }
       },
       {
-        identifier = "cursor_triage"
-        title      = "Cursor remediates via PR"
-        icon       = "Cursor"
-
-        integration_action = {
-          installation_id             = "cursor-cloud-agents"
-          integration_provider        = "cursor-cloud-agents"
-          integration_invocation_type = "create_agent"
-          execution_properties = {
-            ref              = "{{ .outputs.fetch_service.default_branch // \"develop\" }}"
-            prompt           = <<-EOT
-              Remediate this security vulnerability with a minimal PR.
-
-              Title: {{ .outputs.trigger.diff.after.title }}
-              Severity: {{ .outputs.trigger.diff.after.properties.severity }}
-              CVE: {{ .outputs.trigger.diff.after.properties.cve_id }}
-              Package: {{ .outputs.trigger.diff.after.properties.affected_package }}
-              Affected: {{ .outputs.trigger.diff.after.properties.affected_version }}
-              Fixed: {{ .outputs.trigger.diff.after.properties.fixed_version }}
-              Description: {{ .outputs.trigger.diff.after.properties.description }}
-
-              Service: {{ .outputs.fetch_service.title }}
-              Impact: {{ .outputs.assess_impact.impact_summary }}
-              Base branch (MUST use this, not main unless it is literally main): {{ .outputs.fetch_service.default_branch // "develop" }}
-
-              Locate the pinned package/runtime version and bump it to the fixed version. Prefer Remi module form in Packer HCL when applicable (php:remi-X.Y). Open a PR into {{ .outputs.fetch_service.default_branch // "develop" }}. If an open PR already has this fix targeting that base, link it instead of duplicating. Summarize files changed and PR URL.
-            EOT
-            apiVersion       = "v0"
-            repository       = "{{ .outputs.fetch_service.github_url }}"
-            autoCreatePr     = true
-            reportCompletion = true
-          }
-          on_failure = "continue"
-        }
-
-        variables = {
-          prUrl    = "{{ .result.response.target.prUrl // .result.target.prUrl // \"\" }}"
-          status   = "{{ .result.response.status // .result.status // \"\" }}"
-          agentId  = "{{ .result.response.agentId // .result.agentId // \"\" }}"
-          summary  = "{{ .result.response.summary // .result.summary // \"Cursor remediation completed.\" }}"
-          agentUrl = "{{ .result.response.target.url // .result.target.url // \"\" }}"
-        }
-      },
-      {
-        identifier = "create_jira_with_cursor"
+        identifier = "create_jira_with_repo"
         title      = "Create Jira ticket (SD)"
         icon       = "Jira"
 
@@ -202,16 +158,14 @@ locals {
                 CVE: {{ .outputs.trigger.diff.after.properties.cve_id }}
                 Package: {{ .outputs.trigger.diff.after.properties.affected_package }} {{ .outputs.trigger.diff.after.properties.affected_version }} -> {{ .outputs.trigger.diff.after.properties.fixed_version }}
                 Service: {{ .outputs.fetch_service.title }}
+                Repo: {{ .outputs.fetch_service.github_url }}
 
                 {{ .outputs.assess_impact.impact_summary }}
 
                 Actions:
                 {{ .outputs.assess_impact.recommended_actions }}
 
-                Cursor: {{ .outputs.cursor_triage.agentUrl }}
-                PR: {{ .outputs.cursor_triage.prUrl }}
-
-                {{ .outputs.cursor_triage.summary }}
+                Autofix will open PR via jira_sd_teams_cursor_autofix.
               EOT
             }
           }
@@ -227,7 +181,7 @@ locals {
         }
       },
       {
-        identifier = "create_jira_without_cursor"
+        identifier = "create_jira_without_repo"
         title      = "Create Jira ticket (SD, no repo)"
         icon       = "Jira"
 
@@ -261,7 +215,7 @@ locals {
                 Actions:
                 {{ .outputs.assess_impact.recommended_actions }}
 
-                Cursor skipped: no github_url.
+                No github_url on service; jira_sd_teams_cursor_autofix will skip Cursor remediation.
               EOT
             }
           }
@@ -286,14 +240,14 @@ locals {
           blueprint_identifier = "jiraIssue"
           on_failure           = "continue"
           mapping = {
-            identifier = "{{ .outputs.create_jira_with_cursor.issueKey // .outputs.create_jira_without_cursor.issueKey }}"
+            identifier = "{{ .outputs.create_jira_with_repo.issueKey // .outputs.create_jira_without_repo.issueKey }}"
             title      = "[Aikido {{ .outputs.trigger.diff.after.properties.severity }}] {{ .outputs.trigger.diff.after.title }} — {{ .outputs.fetch_service.title }}"
             properties = {
               status      = "To Do"
               summary     = "[Aikido {{ .outputs.trigger.diff.after.properties.severity }}] {{ .outputs.trigger.diff.after.title }} — {{ .outputs.fetch_service.title }}"
               description = "{{ .outputs.assess_impact.impact_summary }}"
               issueType   = "Task"
-              url         = "https://getport.atlassian.net/browse/{{ .outputs.create_jira_with_cursor.issueKey // .outputs.create_jira_without_cursor.issueKey }}"
+              url         = "https://getport.atlassian.net/browse/{{ .outputs.create_jira_with_repo.issueKey // .outputs.create_jira_without_repo.issueKey }}"
             }
             relations = {
               project = "SD"
@@ -319,24 +273,20 @@ locals {
       },
       {
         source_identifier        = "has_repo"
-        target_identifier        = "cursor_triage"
+        target_identifier        = "create_jira_with_repo"
         source_outlet_identifier = "with_repo"
       },
       {
         source_identifier        = "has_repo"
-        target_identifier        = "create_jira_without_cursor"
+        target_identifier        = "create_jira_without_repo"
         source_outlet_identifier = "without_repo"
       },
       {
-        source_identifier = "cursor_triage"
-        target_identifier = "create_jira_with_cursor"
-      },
-      {
-        source_identifier = "create_jira_with_cursor"
+        source_identifier = "create_jira_with_repo"
         target_identifier = "upsert_jira_issue"
       },
       {
-        source_identifier = "create_jira_without_cursor"
+        source_identifier = "create_jira_without_repo"
         target_identifier = "upsert_jira_issue"
       },
     ]

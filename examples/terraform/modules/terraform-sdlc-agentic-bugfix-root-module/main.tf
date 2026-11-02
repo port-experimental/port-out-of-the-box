@@ -2,9 +2,9 @@ module "aikido_vuln_cursor_triage_jira" {
   source = "github.com/port-experimental/terraform-port-workflow?ref=1.0.2"
 
   identifier                = "aikido_vuln_cursor_triage_jira"
-  title                     = "Aikido Vulnerability → Cursor Triage → Jira SD"
+  title                     = "Aikido Vulnerability → Jira SD"
   icon                      = "Vulnerability"
-  description               = "When an Aikido vulnerability is created, resolve the impacted service, run a Cursor cloud agent to triage and open a remediation PR when possible, open a Jira ticket in SD, and sync a Port jiraIssue entity so jira_sd_teams_cursor_autofix can trigger immediately."
+  description               = "When an Aikido vulnerability is created, resolve the impacted service, assess impact, open a Jira ticket in SD (with or without repo context), and sync a Port jiraIssue entity so jira_sd_teams_cursor_autofix owns remediation PR creation."
   category                  = "Agentic Triage"
   allow_anyone_to_view_runs = true
   nodes                     = local.aikido_vuln_cursor_triage_jira.nodes
