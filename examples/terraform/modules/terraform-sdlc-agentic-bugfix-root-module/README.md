@@ -1,11 +1,13 @@
 # terraform-sdlc-agentic-bugfix-root-module
 
 Composes the `terraform-port-workflow` child module three times to manage the live
-Port EU SDLC agentic bugfix workflows. All three use category **`Agentic Triage`**.
+Port EU SDLC agentic bugfix workflows, plus a `terraform-port-dashboard` child module
+for the Agentic Fix Velocity dashboard. All three workflows use category **`Agentic Triage`**.
 
 1. `aikido_vuln_cursor_triage_jira` — Aikido vulnerability → Cursor remediation → Jira SD
 2. `jira_sd_teams_cursor_autofix` — Jira SD → Teams → Cursor triage → Cursor fix
 3. `jira_close_on_pr_merged` — GitHub Actions callback → close Jira + sync Port entity
+4. `agentic_fix_velocity` — DORA-aligned discovery-to-fix velocity dashboard
 
 ## Pipeline overview
 
@@ -24,20 +26,30 @@ Aikido → SD ticket → Cursor autofix → PR merge → Done
 ```text
 Pipeline environment variables
   └── Port provider
-        └── terraform-port-workflow child module (×3)
-              ├── aikido_vuln_cursor_triage_jira
-              ├── jira_sd_teams_cursor_autofix
-              └── jira_close_on_pr_merged
+        ├── terraform-port-workflow child module (×3)
+        │     ├── aikido_vuln_cursor_triage_jira
+        │     ├── jira_sd_teams_cursor_autofix
+        │     └── jira_close_on_pr_merged
+        └── terraform-port-dashboard child module
+              └── agentic_fix_velocity (widgets from dashboards/*.json)
 ```
 
-The root owns provider configuration and the three workflow definitions (`data_*.tf`).
-The child module owns each `port_workflow` resource.
+The root owns provider configuration, the three workflow definitions (`data_*.tf`),
+and the dashboard widget envelope (`dashboards/agentic_fix_velocity.json`).
+The workflow child module owns each `port_workflow` resource; the dashboard child
+module owns the `port_page` resource.
 
-Child module source:
+Child module sources:
 
 ```text
 github.com/port-experimental/terraform-port-workflow?ref=1.0.2
+git::https://github.com/port-experimental/terraform-port-dashboard.git?ref=1.0.0
 ```
+
+> [!CAUTION]
+> **Beta features**
+> Port dashboard pages require `PORT_BETA_FEATURES_ENABLED=true` in the Terraform
+> pipeline environment. Set it alongside `PORT_CLIENT_ID` / `PORT_CLIENT_SECRET`.
 
 ---
 
@@ -147,18 +159,19 @@ flowchart TD
 
 - Terraform >= 1.5
 - `port-labs/port-labs` provider >= 2.33.2 (pinned in `.terraform.lock.hcl`)
-- Port EU credentials with permission to manage workflows, supplied as environment
-  variables. These are managed externally (for example in your CI/CD secret store)
-  and are not Terraform variables:
+- Port EU credentials with permission to manage workflows and dashboard pages, supplied
+  as environment variables. These are managed externally (for example in your CI/CD
+  secret store) and are not Terraform variables:
 
   | Environment variable | Description |
   | -------------------- | ----------- |
   | `PORT_CLIENT_ID`     | Port client ID used to authenticate the Terraform provider. |
   | `PORT_CLIENT_SECRET` | Port client secret used to authenticate the Terraform provider. |
+  | `PORT_BETA_FEATURES_ENABLED` | Must be `true` to manage Port dashboard pages. |
 
 - Port secrets used by the live workflows (`TEAMS_WEBHOOK_URL`, Jira Atlassian token)
 - Integrations: `cursor-cloud-agents`, `jira`
-- Blueprints: `aikidoVulnerability`, `service`, `jiraIssue`
+- Blueprints: `aikidoVulnerability`, `service`, `jiraIssue`, `githubPullRequest`, `deployment`
 
 ## Configuration
 
@@ -189,6 +202,17 @@ module "jira_close_on_pr_merged" {
   nodes       = local.jira_close_on_pr_merged.nodes
   connections = local.jira_close_on_pr_merged.connections
 }
+
+module "agentic_fix_velocity_dashboard" {
+  source = "git::https://github.com/port-experimental/terraform-port-dashboard.git?ref=1.0.0"
+
+  identifier  = "agentic_fix_velocity"
+  title       = "Agentic Fix Velocity"
+  icon        = "Health"
+  locked      = false
+  parent      = var.dashboard_parent
+  widgets     = [file("${path.module}/dashboards/agentic_fix_velocity.json")]
+}
 ```
 
 Workflow identifiers match the live Port EU workflows, which have already been
@@ -200,11 +224,20 @@ terraform import module.jira_sd_teams_cursor_autofix.port_workflow.main jira_sd_
 terraform import module.jira_close_on_pr_merged.port_workflow.main jira_close_on_pr_merged
 ```
 
+### Dashboard widget envelope
+
+`dashboards/agentic_fix_velocity.json` is a Port `dashboard-widget` envelope
+(`id`, `type`, `layout`, `widgets`) exported from the live EU page. The module
+passes it via `file(...)` to the dashboard child module. Edit the JSON (or
+re-export from Port) when changing charts; keep widget `id`s aligned with
+`layout` column ids.
+
 ## Usage
 
 ```bash
 export PORT_CLIENT_ID=...
 export PORT_CLIENT_SECRET=...
+export PORT_BETA_FEATURES_ENABLED=true
 
 terraform init
 terraform validate
@@ -225,9 +258,12 @@ the updated `.terraform.lock.hcl`.
 - `category` — Default category for workflows that do not set an explicit override
   (max 40 characters). Defaults to `Agentic Triage`. The Aikido workflow also uses
   `Agentic Triage` explicitly.
+- `dashboard_parent` — Parent page for the Agentic Fix Velocity dashboard. Defaults
+  to `dashboards`.
 
 ## Outputs
 
 - `aikido_vuln_cursor_triage_jira_id` / `_identifier`
 - `jira_sd_teams_cursor_autofix_id` / `_identifier`
 - `jira_close_on_pr_merged_id` / `_identifier`
+- `agentic_fix_velocity_dashboard_identifier` / `_parent`

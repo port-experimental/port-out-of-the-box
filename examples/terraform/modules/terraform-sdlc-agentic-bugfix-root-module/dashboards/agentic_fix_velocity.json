@@ -1,0 +1,640 @@
+{
+  "id": "agenticFixVelocityDashboard",
+  "type": "dashboard-widget",
+  "layout": [
+    {
+      "height": 420,
+      "columns": [
+        {
+          "id": "velocityIntro",
+          "size": 12
+        }
+      ]
+    },
+    {
+      "height": 400,
+      "columns": [
+        {
+          "id": "sdCreatedMonth",
+          "size": 3
+        },
+        {
+          "id": "sdResolvedMonth",
+          "size": 3
+        },
+        {
+          "id": "sdAvgHandling",
+          "size": 3
+        },
+        {
+          "id": "sdOpenIssues",
+          "size": 3
+        }
+      ]
+    },
+    {
+      "height": 400,
+      "columns": [
+        {
+          "id": "aikidoOpen",
+          "size": 3
+        },
+        {
+          "id": "aikidoFixed",
+          "size": 3
+        },
+        {
+          "id": "avgPrCycleTime",
+          "size": 3
+        },
+        {
+          "id": "deploysMonth",
+          "size": 3
+        }
+      ]
+    },
+    {
+      "height": 420,
+      "columns": [
+        {
+          "id": "issueFlowTrend",
+          "size": 12
+        }
+      ]
+    },
+    {
+      "height": 420,
+      "columns": [
+        {
+          "id": "prLeadTimeTrend",
+          "size": 12
+        }
+      ]
+    },
+    {
+      "height": 400,
+      "columns": [
+        {
+          "id": "sdStatusPie",
+          "size": 6
+        },
+        {
+          "id": "aikidoStatusPie",
+          "size": 6
+        }
+      ]
+    },
+    {
+      "height": 520,
+      "columns": [
+        {
+          "id": "sdIssuesTable",
+          "size": 12
+        }
+      ]
+    },
+    {
+      "height": 520,
+      "columns": [
+        {
+          "id": "aikidoTable",
+          "size": 12
+        }
+      ]
+    }
+  ],
+  "widgets": [
+    {
+      "id": "velocityIntro",
+      "type": "markdown",
+      "title": "Discovery \u2192 Fix velocity",
+      "icon": "Docs",
+      "source": "custom",
+      "markdown": "## Agentic fix velocity (DORA-aligned)\n\nTracks how fast issues move from **discovery** (Aikido / Jira SD create) to **fix** (Cursor PR + Done).\n\n| Signal on this page | Closest DORA metric | Elite target (DORA) |\n|---|---|---|\n| SD issues created / resolved (month) | **Throughput** (supports Deployment Frequency) | Daily change cadence |\n| Avg issue handling duration | **MTTR** proxy for defects | < 1 hour (Elite) / < 1 day (High) |\n| Merged PR cycle time | **Lead Time for Changes** | < 24 hours |\n| Successful deployments (month) | **Deployment Frequency** | \u2265 1/day (Elite) |\n\nPipeline: `Aikido vuln \u2192 SD ticket \u2192 Cursor triage/fix \u2192 PR merge \u2192 Jira Done`"
+    },
+    {
+      "id": "sdCreatedMonth",
+      "type": "entities-number-chart",
+      "title": "SD issues created (30d)",
+      "icon": "Jira",
+      "description": "Jira SD issues created in the last month \u2014 discovery / intake volume",
+      "unit": "none",
+      "chartType": "countEntities",
+      "blueprint": "jiraIssue",
+      "dataset": {
+        "combinator": "and",
+        "rules": [
+          {
+            "operator": "relatedTo",
+            "blueprint": "jiraProject",
+            "value": "SD"
+          },
+          {
+            "property": "created",
+            "operator": "between",
+            "value": {
+              "preset": "lastMonth"
+            }
+          }
+        ]
+      },
+      "func": "count"
+    },
+    {
+      "id": "sdResolvedMonth",
+      "type": "entities-number-chart",
+      "title": "SD issues resolved (30d)",
+      "icon": "Jira",
+      "description": "Jira SD issues with a resolution date in the last month \u2014 fix throughput",
+      "unit": "none",
+      "chartType": "countEntities",
+      "blueprint": "jiraIssue",
+      "dataset": {
+        "combinator": "and",
+        "rules": [
+          {
+            "operator": "relatedTo",
+            "blueprint": "jiraProject",
+            "value": "SD"
+          },
+          {
+            "property": "resolutionDate",
+            "operator": "between",
+            "value": {
+              "preset": "lastMonth"
+            }
+          }
+        ]
+      },
+      "func": "count"
+    },
+    {
+      "id": "sdAvgHandling",
+      "type": "entities-number-chart",
+      "title": "Avg handling duration",
+      "icon": "Clock",
+      "description": "Average days from create to resolve for SD issues resolved in the last month (DORA MTTR-style recovery for defects). Elite \u2248 <1 day.",
+      "unit": "custom",
+      "conditionalFormatting": [
+        {
+          "operator": "<=",
+          "value": 1,
+          "message": "Elite / High",
+          "color": "green"
+        },
+        {
+          "operator": "<=",
+          "value": 7,
+          "message": "Medium",
+          "color": "yellow"
+        },
+        {
+          "operator": ">",
+          "value": 7,
+          "message": "Low",
+          "color": "red"
+        }
+      ],
+      "displayFormatting": "custom",
+      "decimalPlaces": ".00",
+      "chartType": "aggregateByProperty",
+      "blueprint": "jiraIssue",
+      "calculationBy": "property",
+      "dataset": {
+        "combinator": "and",
+        "rules": [
+          {
+            "operator": "relatedTo",
+            "blueprint": "jiraProject",
+            "value": "SD"
+          },
+          {
+            "property": "resolutionDate",
+            "operator": "between",
+            "value": {
+              "preset": "lastMonth"
+            }
+          },
+          {
+            "operator": "isNotEmpty",
+            "property": "handlingDuration"
+          }
+        ]
+      },
+      "property": "handlingDuration",
+      "func": "average",
+      "averageOf": "total",
+      "unitCustom": "days"
+    },
+    {
+      "id": "sdOpenIssues",
+      "type": "entities-number-chart",
+      "title": "Open SD issues",
+      "icon": "Alert",
+      "description": "SD issues not yet Done \u2014 remaining work in the fix pipeline",
+      "unit": "none",
+      "chartType": "countEntities",
+      "blueprint": "jiraIssue",
+      "dataset": {
+        "combinator": "and",
+        "rules": [
+          {
+            "operator": "relatedTo",
+            "blueprint": "jiraProject",
+            "value": "SD"
+          },
+          {
+            "property": "status",
+            "operator": "!=",
+            "value": "Done"
+          }
+        ]
+      },
+      "func": "count"
+    },
+    {
+      "id": "aikidoOpen",
+      "type": "entities-number-chart",
+      "title": "Open Aikido vulns",
+      "icon": "Vulnerability",
+      "description": "Aikido vulnerabilities still Open or In Progress \u2014 discovery backlog",
+      "unit": "none",
+      "chartType": "countEntities",
+      "blueprint": "aikidoVulnerability",
+      "dataset": {
+        "combinator": "or",
+        "rules": [
+          {
+            "property": "status",
+            "operator": "=",
+            "value": "Open"
+          },
+          {
+            "property": "status",
+            "operator": "=",
+            "value": "In Progress"
+          }
+        ]
+      },
+      "func": "count"
+    },
+    {
+      "id": "aikidoFixed",
+      "type": "entities-number-chart",
+      "title": "Fixed Aikido vulns",
+      "icon": "Vulnerability",
+      "description": "Aikido vulnerabilities marked Fixed",
+      "unit": "none",
+      "chartType": "countEntities",
+      "blueprint": "aikidoVulnerability",
+      "dataset": {
+        "combinator": "and",
+        "rules": [
+          {
+            "property": "status",
+            "operator": "=",
+            "value": "Fixed"
+          }
+        ]
+      },
+      "func": "count"
+    },
+    {
+      "id": "avgPrCycleTime",
+      "type": "entities-number-chart",
+      "title": "Avg PR cycle time",
+      "icon": "Github",
+      "description": "Average cycle time (hours) for PRs merged in the last month \u2014 DORA Lead Time for Changes proxy",
+      "unit": "custom",
+      "conditionalFormatting": [
+        {
+          "operator": "<=",
+          "value": 24,
+          "message": "Elite (<24h)",
+          "color": "green"
+        },
+        {
+          "operator": "<=",
+          "value": 168,
+          "message": "High (<1w)",
+          "color": "yellow"
+        },
+        {
+          "operator": ">",
+          "value": 168,
+          "message": "Medium/Low",
+          "color": "orange"
+        }
+      ],
+      "displayFormatting": "custom",
+      "decimalPlaces": ".00",
+      "chartType": "aggregateByProperty",
+      "blueprint": "githubPullRequest",
+      "calculationBy": "property",
+      "dataset": {
+        "combinator": "and",
+        "rules": [
+          {
+            "property": "status",
+            "operator": "=",
+            "value": "merged"
+          },
+          {
+            "property": "mergedAt",
+            "operator": "between",
+            "value": {
+              "preset": "lastMonth"
+            }
+          },
+          {
+            "operator": "isNotEmpty",
+            "property": "cycle_time_hours"
+          }
+        ]
+      },
+      "property": "cycle_time_hours",
+      "func": "average",
+      "averageOf": "total",
+      "unitCustom": "hours"
+    },
+    {
+      "id": "deploysMonth",
+      "type": "entities-number-chart",
+      "title": "Successful deploys (30d)",
+      "icon": "Deployment",
+      "description": "Successful production-tracked deployments in the last month \u2014 DORA Deployment Frequency volume",
+      "unit": "none",
+      "chartType": "countEntities",
+      "blueprint": "deployment",
+      "dataset": {
+        "combinator": "and",
+        "rules": [
+          {
+            "property": "deploymentStatus",
+            "operator": "=",
+            "value": "Success"
+          },
+          {
+            "property": "createdAt",
+            "operator": "between",
+            "value": {
+              "preset": "lastMonth"
+            }
+          }
+        ]
+      },
+      "func": "count"
+    },
+    {
+      "id": "issueFlowTrend",
+      "type": "multi-line-chart",
+      "icon": "LineChart",
+      "title": "Issue flow \u2014 created vs resolved",
+      "xAxisTitle": "Day",
+      "yAxisTitle": "Issues",
+      "timeInterval": "day",
+      "timeRange": {
+        "preset": "lastMonth"
+      },
+      "description": "Daily SD issue create and resolve volume over the last month",
+      "lines": [
+        {
+          "title": "Created",
+          "blueprint": "jiraIssue",
+          "chartType": "countEntities",
+          "func": "count",
+          "measureTimeBy": "created",
+          "dataset": {
+            "combinator": "and",
+            "rules": [
+              {
+                "operator": "relatedTo",
+                "blueprint": "jiraProject",
+                "value": "SD"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Resolved",
+          "blueprint": "jiraIssue",
+          "chartType": "countEntities",
+          "func": "count",
+          "measureTimeBy": "resolutionDate",
+          "dataset": {
+            "combinator": "and",
+            "rules": [
+              {
+                "operator": "relatedTo",
+                "blueprint": "jiraProject",
+                "value": "SD"
+              },
+              {
+                "operator": "isNotEmpty",
+                "property": "resolutionDate"
+              }
+            ]
+          }
+        }
+      ],
+      "baselines": []
+    },
+    {
+      "id": "prLeadTimeTrend",
+      "type": "multi-line-chart",
+      "icon": "LineChart",
+      "title": "Lead time trend \u2014 PR cycle hours",
+      "xAxisTitle": "Day",
+      "yAxisTitle": "Hours",
+      "timeInterval": "day",
+      "timeRange": {
+        "preset": "lastMonth"
+      },
+      "description": "Daily average PR cycle time for merged PRs (DORA Lead Time for Changes)",
+      "lines": [
+        {
+          "title": "Avg cycle time (h)",
+          "blueprint": "githubPullRequest",
+          "chartType": "aggregatePropertiesValues",
+          "properties": [
+            "properties.cycle_time_hours"
+          ],
+          "func": "average",
+          "measureTimeBy": "mergedAt",
+          "dataset": {
+            "combinator": "and",
+            "rules": [
+              {
+                "property": "status",
+                "operator": "=",
+                "value": "merged"
+              },
+              {
+                "operator": "isNotEmpty",
+                "property": "cycle_time_hours"
+              }
+            ]
+          }
+        }
+      ],
+      "baselines": [
+        {
+          "name": "Elite (<24h)",
+          "value": 24,
+          "color": "green"
+        },
+        {
+          "name": "High (<168h)",
+          "value": 168,
+          "color": "yellow"
+        }
+      ]
+    },
+    {
+      "id": "sdStatusPie",
+      "type": "entities-pie-chart",
+      "icon": "Pie",
+      "title": "SD issues by status",
+      "blueprint": "jiraIssue",
+      "property": "property#status",
+      "description": "Current status mix for Jira project SD",
+      "dataset": {
+        "combinator": "and",
+        "rules": [
+          {
+            "operator": "relatedTo",
+            "blueprint": "jiraProject",
+            "value": "SD"
+          }
+        ]
+      }
+    },
+    {
+      "id": "aikidoStatusPie",
+      "type": "entities-pie-chart",
+      "icon": "Pie",
+      "title": "Aikido vulns by status",
+      "blueprint": "aikidoVulnerability",
+      "property": "property#status",
+      "description": "Discovery backlog vs fixed vulnerabilities",
+      "dataset": {
+        "combinator": "and",
+        "rules": []
+      }
+    },
+    {
+      "id": "sdIssuesTable",
+      "type": "table-entities-explorer",
+      "icon": "Table",
+      "description": "Jira SD issues with create/resolve timestamps and handling duration (days)",
+      "title": "SD issues \u2014 handling time",
+      "blueprint": "jiraIssue",
+      "dataset": {
+        "combinator": "and",
+        "rules": [
+          {
+            "operator": "relatedTo",
+            "blueprint": "jiraProject",
+            "value": "SD"
+          }
+        ]
+      },
+      "excludedFields": [],
+      "displayMode": "widget",
+      "blueprintConfig": {
+        "jiraIssue": {
+          "groupSettings": {
+            "groupBy": [
+              "status"
+            ]
+          },
+          "sortSettings": {
+            "sortBy": [
+              {
+                "property": "created",
+                "order": "desc"
+              }
+            ]
+          },
+          "propertiesSettings": {
+            "order": [
+              "$title",
+              "status",
+              "priority",
+              "issueType",
+              "created",
+              "resolutionDate",
+              "handlingDuration",
+              "service",
+              "url"
+            ],
+            "shown": [
+              "$title",
+              "status",
+              "priority",
+              "issueType",
+              "created",
+              "resolutionDate",
+              "handlingDuration",
+              "service",
+              "url"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "aikidoTable",
+      "type": "table-entities-explorer",
+      "icon": "Table",
+      "description": "Discovered vulnerabilities feeding the agentic triage \u2192 Jira path",
+      "title": "Aikido vulnerabilities",
+      "blueprint": "aikidoVulnerability",
+      "dataset": {
+        "combinator": "and",
+        "rules": []
+      },
+      "excludedFields": [],
+      "displayMode": "widget",
+      "blueprintConfig": {
+        "aikidoVulnerability": {
+          "groupSettings": {
+            "groupBy": [
+              "status"
+            ]
+          },
+          "sortSettings": {
+            "sortBy": [
+              {
+                "property": "discovered_at",
+                "order": "desc"
+              }
+            ]
+          },
+          "propertiesSettings": {
+            "order": [
+              "$title",
+              "severity",
+              "status",
+              "cve_id",
+              "discovered_at",
+              "service",
+              "affected_package",
+              "fixed_version"
+            ],
+            "shown": [
+              "$title",
+              "severity",
+              "status",
+              "cve_id",
+              "discovered_at",
+              "service",
+              "affected_package",
+              "fixed_version"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

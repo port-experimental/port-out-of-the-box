@@ -27,3 +27,13 @@ output "jira_close_on_pr_merged_identifier" {
   description = "Configured identifier for jira_close_on_pr_merged."
   value       = module.jira_close_on_pr_merged.identifier
 }
+
+output "agentic_fix_velocity_dashboard_identifier" {
+  description = "Port page identifier for the Agentic Fix Velocity dashboard."
+  value       = module.agentic_fix_velocity_dashboard.identifier
+}
+
+output "agentic_fix_velocity_dashboard_parent" {
+  description = "Parent page identifier for the Agentic Fix Velocity dashboard."
+  value       = module.agentic_fix_velocity_dashboard.parent
+}

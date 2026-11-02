@@ -18,3 +18,9 @@ variable "category" {
     error_message = "Workflow category must be 40 characters or fewer."
   }
 }
+
+variable "dashboard_parent" {
+  description = "Parent page identifier for the Agentic Fix Velocity dashboard."
+  type        = string
+  default     = "dashboards"
+}

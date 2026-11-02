@@ -36,3 +36,15 @@ module "jira_close_on_pr_merged" {
   nodes                     = local.jira_close_on_pr_merged.nodes
   connections               = local.jira_close_on_pr_merged.connections
 }
+
+module "agentic_fix_velocity_dashboard" {
+  source = "git::https://github.com/port-experimental/terraform-port-dashboard.git?ref=1.0.0"
+
+  identifier  = "agentic_fix_velocity"
+  title       = "Agentic Fix Velocity"
+  description = "Discovery-to-fix velocity for the agentic bugfix pipeline (Aikido → Jira SD → Cursor → Done), aligned to DORA throughput, lead time, and recovery guidance."
+  icon        = "Health"
+  locked      = false
+  parent      = var.dashboard_parent
+  widgets     = [file("${path.module}/dashboards/agentic_fix_velocity.json")]
+}
