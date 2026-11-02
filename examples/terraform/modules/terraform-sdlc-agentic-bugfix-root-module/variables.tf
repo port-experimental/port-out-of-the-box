@@ -11,7 +11,7 @@ variable "jira_cloud_id" {
 variable "category" {
   description = "Default category for workflows that do not set an explicit override."
   type        = string
-  default     = "Engineering"
+  default     = "Agentic Triage"
 
   validation {
     condition     = length(var.category) <= 40

@@ -5,7 +5,7 @@ module "aikido_vuln_cursor_triage_jira" {
   title                     = "Aikido Vulnerability → Cursor Triage → Jira SD"
   icon                      = "Vulnerability"
   description               = "When an Aikido vulnerability is created, resolve the impacted service, run a Cursor cloud agent to triage and open a remediation PR when possible, and open a Jira ticket in SD with impact and severity."
-  category                  = "Security"
+  category                  = "Agentic Triage"
   allow_anyone_to_view_runs = true
   nodes                     = local.aikido_vuln_cursor_triage_jira.nodes
   connections               = local.aikido_vuln_cursor_triage_jira.connections
