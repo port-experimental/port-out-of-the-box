@@ -1,0 +1,26 @@
+variable "jira_cloud_id" {
+  description = "Atlassian cloud ID of the Jira site used for issue creation and comments."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[0-9a-f-]{36}$", var.jira_cloud_id))
+    error_message = "jira_cloud_id must be an Atlassian cloud ID (UUID)."
+  }
+}
+
+variable "category" {
+  description = "Default category for workflows that do not set an explicit override."
+  type        = string
+  default     = "Agentic Triage"
+
+  validation {
+    condition     = length(var.category) <= 40
+    error_message = "Workflow category must be 40 characters or fewer."
+  }
+}
+
+variable "dashboard_parent" {
+  description = "Parent page identifier for the Agentic Fix Velocity dashboard."
+  type        = string
+  default     = "dashboards"
+}
