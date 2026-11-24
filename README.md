@@ -19,6 +19,12 @@ You will need a Port account with [client credentials](https://docs.port.io/buil
 - [`reference-architecture/port-resource-promotion/terraform`](reference-architecture/port-resource-promotion/terraform) — Promote Port configuration as Terraform through the same Integration → Staging → Production ladder: plan on pull request, apply on merge, and roll out on release. Also needs Terraform Cloud for state.
 - [`reference-architecture/integration/azure-tf`](reference-architecture/integration/azure-tf) — Deploy Port's Azure integration on Azure Container Apps with Event Grid for real-time catalog updates across one or more subscriptions (Terraform). Also needs an Azure subscription and Terraform Cloud (or another state backend).
 
+## Patterns
+
+A pattern is a reusable way to model something in Port, delivered as the resources you need to install it: Terraform, a Port CLI script, and any glue code. Unlike a reference architecture, it is not a pipeline. You install it into a Port organization and adapt it.
+
+- [`patterns/dynamic-ownership`](patterns/dynamic-ownership) — Let teams form and dissolve without editing GitHub teams or `CODEOWNERS` by hand. A temporary team (a swarm) is linked to a service in Port, GitHub team membership follows automatically, `CODEOWNERS` stays static, and every change is recorded. Install it with Terraform or the Port CLI, and add the GitHub sync Action.
+
 ## Toolchain
 
 Working examples have to pick concrete tools, so these projects use GitHub Actions for CI/CD, Terraform for infrastructure, and Terraform Cloud for Terraform state. Port itself is driven through the [Port CLI](https://docs.port.io/) and the [Port Terraform provider](https://registry.terraform.io/providers/port-labs/port-labs/latest/docs).
