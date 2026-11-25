@@ -24,11 +24,22 @@ A quick test: if the concept is needed no matter what the use case is, it is fou
 
 ## How patterns are organized
 
-Each pattern lives in its own folder under `patterns/`. A pattern folder contains:
+Each pattern lives in its own folder under `patterns/`, laid out like this:
 
-- A `README.md` that explains the problem, the design, what gets installed, and the limits of the pattern.
-- One or more implementation folders, so a customer can choose how to install it. For example, `terraform/` for infrastructure as code and `port-cli/` for scripts that use the Port CLI.
-- Any supporting code the pattern needs outside Port, such as a GitHub Action.
+```
+patterns/<pattern-name>/
+├── README.md        what the pattern is and how to get started with it
+├── docs/            all the relevant documentation for the pattern
+├── adapters/        customer-specific: parts outside Port that vary by customer
+└── port-config/     port-specific: what you create in Port
+    ├── terraform/   customers choose one of these two
+    └── port-cli/
+```
+
+- **`README.md`** explains what the pattern is and how to get started using it.
+- **`docs/`** holds the rest of the documentation: design, data model, diagrams, and limits.
+- **`adapters/`** (customer-specific) holds the artifacts that connect the pattern to systems outside Port. These depend on the customer's ecosystem. Think of it as an interface with sample implementations. For example, the dynamic ownership pattern's `github-sync/` is one implementation for customers who manage teams and users in Git. A customer who manages teams in ServiceNow or Okta needs a different implementation of the same design.
+- **`port-config/`** (port-specific) holds what a customer creates in Port: blueprints, workflows, and pages. Customers choose either `terraform/` or `port-cli/`. Both produce the same result.
 
 ## Current patterns
 
