@@ -1,16 +1,17 @@
 # Dynamic ownership: Port CLI
 
-Defines the Port side of the [dynamic ownership pattern](../../README.md) as plain JSON, applied by one script with the [Port CLI](https://docs.port.io/). There is no state to manage, and you can run the script again at any time. The [guide](../../GUIDE.md#2-port-extend-the-blueprints) has the commands. This file is the reference.
+Applies the Port side of the [dynamic ownership pattern](../../README.md) with the [Port CLI](https://docs.port.io/). One script applies the JSON files in [`../definitions`](../definitions). There is no state to manage, and you can run the script again at any time. The [guide](../../GUIDE.md#2-port-extend-the-blueprints) has the commands. This file is the reference.
+
+You do not need Terraform for this. The CLI creates everything the pattern needs. See [`port-config`](..) for how this folder relates to [`../terraform`](../terraform): use one of the two.
 
 The adapter is separate. See [`adapters/github-sync`](../../adapters/github-sync).
 
-The Terraform folder, [`../terraform`](../terraform), defines the same resources. Choose one of the two.
+## What the script applies
 
-## What is in here
+`apply.sh` applies these files from [`../definitions`](../definitions), in order. It supports `--dry-run` and `--with-pages`.
 
-| Path | Contents |
+| Path in `definitions/` | Contents |
 |---|---|
-| `apply.sh` | Applies everything below, in order. Supports `--dry-run` and `--with-pages` |
 | `blueprints/team.json`, `user.json` | Properties, relation, mirror and aggregation added to the built-in `_team` and `_user` blueprints |
 | `blueprints/service.additions.json` | What is added to your service blueprint: staging relation, mirror property, Direct ownership |
 | `blueprints/service.minimal.json` | A minimal service blueprint, used only when you ask the script to create one |
@@ -41,4 +42,4 @@ The Terraform folder, [`../terraform`](../terraform), defines the same resources
 - **Order matters.** Blueprints are applied before workflows, and workflows before pages, because each refers to the one before.
 - **Pages are optional.** Port validates each page definition when it is written. Apply the pages in a sandbox organization before production.
 - **Placeholders.** The JSON files use `__SERVICE_BLUEPRINT__` for the service blueprint identifier. The script replaces it. If you apply the files some other way, replace it yourself.
-- **Terraform equivalent.** [`../terraform`](../terraform) defines the same resources. The files in `pages/` are shared by both. If you change one copy, change the other.
+- **Terraform equivalent.** [`../terraform`](../terraform) defines the same resources for customers who use Terraform. Use one of the two. The dashboards are shared, and the blueprints and workflows are kept in step by hand.

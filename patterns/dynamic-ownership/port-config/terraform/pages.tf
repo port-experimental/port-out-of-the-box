@@ -1,14 +1,14 @@
 # Optional dashboards. Off by default: create_pages = false.
 #
-# The page definitions in ./pages are the same files used by ../port-cli/pages. Keep the two
-# copies identical. __SERVICE_BLUEPRINT__ is replaced with var.service_blueprint_identifier.
+# The page definitions are read from ../definitions/pages, the same files the Port CLI script
+# applies. There is one copy. __SERVICE_BLUEPRINT__ is replaced with var.service_blueprint_identifier.
 
 locals {
   page_ids = ["org_structure", "my_team", "management", "ownership_trail"]
 
   pages = {
     for id in local.page_ids : id => jsondecode(replace(
-      file("${path.module}/pages/${id}.json"),
+      file("${path.module}/../definitions/pages/${id}.json"),
       "__SERVICE_BLUEPRINT__",
       var.service_blueprint_identifier
     ))

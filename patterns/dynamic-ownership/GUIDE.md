@@ -22,7 +22,7 @@ Then follow the numbered steps in GUIDE.md, in order. Rules:
 - Never ask me to paste a secret into the chat. Tell me to export it as an environment variable (PORT_CLIENT_ID, PORT_CLIENT_SECRET) or to add it as a GitHub secret.
 - Use the sandbox Port organization I name. If the organization looks like production, stop and ask me.
 - Run each dry run first (terraform plan, or ./apply.sh --dry-run), show me the output, and wait for my go-ahead before each apply.
-- Use either port-config/terraform or port-config/port-cli, never both, for the same organization.
+- Apply the objects in port-config/definitions in one way only (Terraform, the Port CLI script, or the API), never more than one, for the same organization. Terraform is not required.
 - Do not change existing blueprint properties, relations, or workflows beyond what the steps add. If something conflicts, stop and ask.
 - Do not run the GitHub sync in apply mode unless I say so.
 - Refer to files by their relative path from this folder.
@@ -48,7 +48,7 @@ Check each item before you start.
 
 ### Tools
 
-- Either Terraform 1.5 or later, or the Port CLI with `jq`. You need one of them, not both.
+- One way to apply the Port definitions: Terraform 1.5 or later, or the Port CLI with `jq`. You do not need Terraform if you use the Port CLI. Use one, not both.
 - Git, for copying the GitHub adapter into your repository.
 
 ## Inputs
@@ -80,7 +80,7 @@ Confirm each item under [Prerequisites](#prerequisites).
 
 ## 2. Port: extend the blueprints
 
-Choose **one** of the two. Run the commands from the repository root.
+The Port objects are defined as JSON in [`port-config/definitions`](port-config/definitions). Apply them in **one** of the ways below. The options are alternatives. Each one creates the same objects, and neither needs the other. Do not apply more than one to the same organization. Run the commands from the repository root.
 
 **Option A: Terraform** (in [`port-config/terraform`](port-config/terraform))
 
@@ -110,6 +110,8 @@ export SERVICE_BLUEPRINT=<your-service-blueprint>
 ```
 
 The CLI script adds the Direct ownership and the staging relation to your service blueprint for you.
+
+**Option C: neither tool.** Apply the files in [`port-config/definitions`](port-config/definitions) through the Port API, or ask your agent to. Apply the blueprints first, then the workflows, then the pages. The blueprint files for `_team`, `_user`, and your service blueprint are additions to merge into the existing blueprint, not full replacements. [`apply.sh`](port-config/port-cli/apply.sh) shows the merge. This option has not been tested.
 
 **Expected:**
 - The `_team` and `_user` blueprints gain the properties listed in [`docs/design.md`](docs/design.md#data-model).

@@ -24,7 +24,7 @@ Port workflows can replace a list but cannot append to one, so each change is a 
 - A **service blueprint** with **Direct ownership**, which gives it the `team` field. The pattern is written against a blueprint called `service`, but any name works. Inherited ownership does not work, because the workflows write the `team` list directly.
 - Port **users and teams** in the catalog. Users normally arrive through SSO. Each person who should get downstream access needs the identifier the adapter uses. The example adapter reads `github_login` on the `_user` entity.
 - For the example adapter: a GitHub organization, a GitHub App with Members read and write permission, and one team per repository named `owners-<repo>`. The adapter never creates teams.
-- Terraform or the Port CLI, to apply the Port definitions. Use one of them, not both.
+- A way to apply the Port definitions: the Port CLI or Terraform. Neither depends on the other, and the Port CLI can create everything on its own. Use one, not both.
 
 The [guide](GUIDE.md) turns these requirements into a checklist to confirm before you start.
 
@@ -54,5 +54,5 @@ These rules are built into the design. Keep them when you change the pattern.
 
 - [`GUIDE.md`](GUIDE.md): how to set the pattern up, including a prompt for a coding agent.
 - [`docs/design.md`](docs/design.md): the data model, workflows, and dashboards.
-- [`port-config/`](port-config): the Port definitions, as [Terraform](port-config/terraform) or the [Port CLI](port-config/port-cli).
+- [`port-config/`](port-config): the Port definitions as JSON in [`definitions/`](port-config/definitions), applied with the [Port CLI](port-config/port-cli) or [Terraform](port-config/terraform).
 - [`adapters/github-sync/`](adapters/github-sync): the example adapter for GitHub.
