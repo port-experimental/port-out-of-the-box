@@ -1,0 +1,68 @@
+{
+  "identifier": "add_user_to_swarm",
+  "title": "Add user to swarm",
+  "allowAnyoneToViewRuns": true,
+  "nodes": [
+    {
+      "identifier": "trigger",
+      "title": "Add user to swarm",
+      "config": {
+        "type": "SELF_SERVE_TRIGGER",
+        "userInputs": {
+          "properties": {
+            "user": {
+              "title": "User",
+              "type": "string",
+              "format": "entity",
+              "blueprint": "_user"
+            },
+            "swarm": {
+              "title": "Swarm",
+              "type": "string",
+              "format": "entity",
+              "blueprint": "_team"
+            }
+          },
+          "required": [
+            "user",
+            "swarm"
+          ],
+          "order": [
+            "user",
+            "swarm"
+          ]
+        },
+        "published": true,
+        "permissions": {
+          "roles": [
+            "Admin"
+          ],
+          "teams": []
+        }
+      }
+    },
+    {
+      "identifier": "set_pending_swarm",
+      "title": "Set pending swarm on user",
+      "config": {
+        "type": "UPSERT_ENTITY",
+        "blueprintIdentifier": "_user",
+        "mapping": {
+          "identifier": "{{ .outputs.trigger.user }}",
+          "properties": {
+            "pending_swarm": "{{ .outputs.trigger.swarm }}"
+          }
+        },
+        "onFailure": "terminate",
+        "timeoutMinutes": 60
+      }
+    }
+  ],
+  "connections": [
+    {
+      "sourceIdentifier": "trigger",
+      "targetIdentifier": "set_pending_swarm"
+    }
+  ],
+  "description": "Stages a swarm on a user. apply_pending_swarm then appends it to the user's teams."
+}
