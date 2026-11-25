@@ -1,0 +1,55 @@
+name: Sync owners team
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: Port service identifier (e.g. payments_api)
+        required: true
+        type: string
+      repo:
+        description: GitHub repo name (e.g. payments-api). Team synced is owners-<repo>.
+        required: true
+        type: string
+      mode:
+        description: dry-run only reports the diff. apply changes GitHub team membership.
+        required: true
+        type: choice
+        options:
+          - dry-run
+          - apply
+        default: dry-run
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-owners-${{ inputs.repo }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Sync owners-${{ inputs.repo }} (${{ inputs.mode }})
+        env:
+          PORT_CLIENT_ID: ${{ secrets.PORT_CLIENT_ID }}
+          PORT_CLIENT_SECRET: ${{ secrets.PORT_CLIENT_SECRET }}
+          OWNERSHIP_APP_PRIVATE_KEY: ${{ secrets.OWNERSHIP_APP_PRIVATE_KEY }}
+          OWNERSHIP_APP_CLIENT_ID: ${{ vars.OWNERSHIP_APP_CLIENT_ID }}
+          OWNERSHIP_INSTALLATION_ID: ${{ vars.OWNERSHIP_INSTALLATION_ID }}
+          OWNERSHIP_GITHUB_ORG: ${{ vars.OWNERSHIP_GITHUB_ORG }}
+          PORT_API_URL: ${{ vars.PORT_API_URL }}
+          SERVICE_BLUEPRINT: ${{ vars.SERVICE_BLUEPRINT }}
+          SERVICE: ${{ inputs.service }}
+          REPO: ${{ inputs.repo }}
+          MODE: ${{ inputs.mode }}
+        run: node scripts/sync-owners.mjs

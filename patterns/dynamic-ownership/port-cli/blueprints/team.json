@@ -1,0 +1,86 @@
+{
+  "identifier": "_team",
+  "schema": {
+    "properties": {
+      "period": {
+        "type": "string",
+        "title": "Period",
+        "description": "e.g. 2026Q4. Used for quarter-scoped swarms",
+        "icon": "HourGlassExpired"
+      },
+      "start_date": {
+        "type": "string",
+        "title": "Start date",
+        "icon": "Calendar"
+      },
+      "end_date": {
+        "type": "string",
+        "title": "End date",
+        "icon": "Calendar"
+      },
+      "team_kind": {
+        "title": "Team kind",
+        "type": "string",
+        "enum": [
+          "swarm",
+          "long_lived"
+        ],
+        "enumColors": {
+          "swarm": "purple",
+          "long_lived": "green"
+        },
+        "default": "long_lived",
+        "icon": "Team"
+      },
+      "status": {
+        "title": "Status",
+        "type": "string",
+        "enum": [
+          "planned",
+          "active",
+          "retired"
+        ],
+        "enumColors": {
+          "planned": "yellow",
+          "active": "green",
+          "retired": "red"
+        },
+        "default": "active",
+        "icon": "StatusPage"
+      }
+    }
+  },
+  "relations": {
+    "parent_team": {
+      "title": "Parent Team",
+      "target": "_team",
+      "required": false,
+      "many": false
+    }
+  },
+  "mirrorProperties": {
+    "parent_team_name": {
+      "title": "Parent Team",
+      "path": "parent_team.$title"
+    }
+  },
+  "aggregationProperties": {
+    "size": {
+      "title": "Size",
+      "type": "number",
+      "target": "_user",
+      "calculationSpec": {
+        "func": "count",
+        "calculationBy": "entities"
+      },
+      "pathFilter": [
+        {
+          "fromBlueprint": "_user",
+          "path": [
+            "$team"
+          ]
+        }
+      ]
+    }
+  }
+}

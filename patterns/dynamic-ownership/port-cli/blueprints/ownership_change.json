@@ -1,0 +1,86 @@
+{
+  "identifier": "ownership_change",
+  "title": "Ownership Change",
+  "schema": {
+    "properties": {
+      "entity": {
+        "type": "string",
+        "title": "Entity",
+        "description": "Identifier of the service, team or user that changed, e.g. payments_api"
+      },
+      "entity_type": {
+        "title": "Entity type",
+        "type": "string",
+        "enum": [
+          "service",
+          "team",
+          "user"
+        ],
+        "description": "Which kind of entity changed"
+      },
+      "change_type": {
+        "title": "Change type",
+        "type": "string",
+        "enum": [
+          "owning_team",
+          "membership",
+          "parent_team"
+        ],
+        "description": "What kind of change was made"
+      },
+      "before": {
+        "type": "string",
+        "title": "Before",
+        "description": "Value before the change"
+      },
+      "after": {
+        "type": "string",
+        "title": "After",
+        "description": "Value after the change"
+      },
+      "changed_by": {
+        "type": "string",
+        "title": "Changed by",
+        "description": "Who made the change"
+      },
+      "changed_at": {
+        "type": "string",
+        "format": "date-time",
+        "title": "Changed at",
+        "description": "When it happened",
+        "dateFormat": "relative"
+      },
+      "source": {
+        "title": "Source",
+        "type": "string",
+        "enum": [
+          "ui",
+          "action",
+          "workflow"
+        ],
+        "description": "How the change was made"
+      },
+      "approved_by": {
+        "type": "string",
+        "title": "Approved by",
+        "description": "Who approved the change, when an approval step is used"
+      },
+      "self_approved": {
+        "type": "boolean",
+        "title": "Self approved",
+        "default": false,
+        "description": "True when the requester approved their own change"
+      },
+      "reason": {
+        "type": "string",
+        "title": "Reason",
+        "description": "Why the change was made"
+      }
+    },
+    "required": []
+  },
+  "mirrorProperties": {},
+  "calculationProperties": {},
+  "aggregationProperties": {},
+  "relations": {}
+}

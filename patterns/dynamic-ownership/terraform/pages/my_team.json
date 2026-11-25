@@ -1,0 +1,121 @@
+{
+  "identifier": "my_team",
+  "title": "My Team",
+  "icon": "Apps",
+  "type": "dashboard",
+  "widgets": [
+    {
+      "id": "df7e920f-aba2-4cea-9e8a-684c49c5e258",
+      "type": "dashboard-widget",
+      "layout": [
+        {
+          "height": 400,
+          "columns": [
+            {
+              "id": "LZOO87lNFhhuEjGF",
+              "size": 6
+            },
+            {
+              "id": "VtaQlrCLQUzcZ1q1",
+              "size": 6
+            }
+          ]
+        }
+      ],
+      "widgets": [
+        {
+          "type": "table-entities-explorer",
+          "displayMode": "widget",
+          "title": "Services my teams own",
+          "excludedFields": [],
+          "description": "",
+          "emptyStateText": "",
+          "icon": "Table",
+          "dataset": {
+            "combinator": "and",
+            "rules": []
+          },
+          "blueprintConfig": {
+            "__SERVICE_BLUEPRINT__": {
+              "propertiesSettings": {
+                "order": [],
+                "shown": [
+                  "$title",
+                  "$updatedAt",
+                  "$createdAt"
+                ]
+              }
+            }
+          },
+          "blueprint": "__SERVICE_BLUEPRINT__",
+          "entitiesQueryMode": "optimized",
+          "entitiesQueryMaxResults": 1000,
+          "id": "LZOO87lNFhhuEjGF"
+        },
+        {
+          "type": "table-entities-explorer",
+          "displayMode": "widget",
+          "title": "My teammates",
+          "excludedFields": [],
+          "description": "",
+          "emptyStateText": "",
+          "icon": "Table",
+          "dataset": {
+            "combinator": "and",
+            "rules": [
+              {
+                "property": "$team",
+                "operator": "containsAny",
+                "value": {
+                  "context": "user",
+                  "property": "$team"
+                }
+              }
+            ]
+          },
+          "blueprintConfig": {
+            "_user": {
+              "propertiesSettings": {
+                "order": [],
+                "shown": [
+                  "$title",
+                  "$updatedAt",
+                  "$createdAt"
+                ]
+              }
+            }
+          },
+          "blueprint": "_user",
+          "entitiesQueryMode": "optimized",
+          "entitiesQueryMaxResults": 1000,
+          "id": "VtaQlrCLQUzcZ1q1"
+        }
+      ]
+    }
+  ],
+  "pageFilters": [
+    {
+      "identifier": "cfeb213e-1986-44d4-9761-57590c7cd744",
+      "title": "Owning Teams has any of my teams",
+      "query": {
+        "combinator": "and",
+        "rules": [
+          {
+            "value": [
+              "{{getUserTeams()}}"
+            ],
+            "property": "$team",
+            "operator": "containsAny"
+          }
+        ],
+        "blueprint": "dashboard-filters-meta-blueprint"
+      }
+    }
+  ],
+  "pageFilterPresets": [],
+  "requiredQueryParams": [],
+  "sidebar": "catalog",
+  "showInSidebar": true,
+  "section": "software_catalog",
+  "visibility": "org"
+}
