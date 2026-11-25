@@ -81,7 +81,7 @@ To keep a guide safe for an agent to follow:
 
 ## Current patterns
 
-- [`dynamic-ownership`](dynamic-ownership) — Let teams form and dissolve without editing GitHub teams or `CODEOWNERS` by hand. A temporary team (a swarm) is linked to a service in Port, GitHub team membership follows automatically, `CODEOWNERS` stays static, and every change is recorded.
+- [`dynamic-ownership`](dynamic-ownership) — Let teams form and dissolve without editing team membership or ownership files by hand. A temporary team (a swarm) is linked to a service in Port, and the members of the team it maps to follow automatically. Every change is recorded. The pattern is generic: it syncs membership to whatever system the customer uses for teams and users. The included example syncs to GitHub teams and `CODEOWNERS`. Customers who use another system, such as ServiceNow or Okta, need their own adapter.
 
 ## Adding a pattern
 
