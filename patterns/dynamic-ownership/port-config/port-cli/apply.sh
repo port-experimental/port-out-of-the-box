@@ -21,6 +21,8 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The Port objects are JSON files in the definitions folder next to this one.
+DEFS="$(cd "$DIR/../definitions" && pwd)"
 
 DRY_RUN=false
 WITH_PAGES=false
@@ -142,16 +144,16 @@ $DRY_RUN && say "Dry run: nothing will be changed"
 say ""
 say "1. Blueprints"
 # _team must be extended before the workflows and pages that reference it.
-merge_blueprint "_team" "$DIR/blueprints/team.json"
-merge_blueprint "_user" "$DIR/blueprints/user.json"
-put_blueprint "ownership_change" "$DIR/blueprints/ownership_change.json"
+merge_blueprint "_team" "$DEFS/blueprints/team.json"
+merge_blueprint "_user" "$DEFS/blueprints/user.json"
+put_blueprint "ownership_change" "$DEFS/blueprints/ownership_change.json"
 
 if exists "/blueprints/${SERVICE_BLUEPRINT}"; then
-  merge_blueprint "$SERVICE_BLUEPRINT" "$DIR/blueprints/service.additions.json"
+  merge_blueprint "$SERVICE_BLUEPRINT" "$DEFS/blueprints/service.additions.json"
 elif [ "$CREATE_SERVICE_BLUEPRINT" = "true" ]; then
   # Greenfield: start from the minimal blueprint, then add the pattern's relation, mirror and ownership.
-  create_blueprint "$SERVICE_BLUEPRINT" "$DIR/blueprints/service.minimal.json"
-  if ! $DRY_RUN; then merge_blueprint "$SERVICE_BLUEPRINT" "$DIR/blueprints/service.additions.json"; fi
+  create_blueprint "$SERVICE_BLUEPRINT" "$DEFS/blueprints/service.minimal.json"
+  if ! $DRY_RUN; then merge_blueprint "$SERVICE_BLUEPRINT" "$DEFS/blueprints/service.additions.json"; fi
 else
   say "Blueprint '${SERVICE_BLUEPRINT}' does not exist. Set SERVICE_BLUEPRINT to your service blueprint, or CREATE_SERVICE_BLUEPRINT=true to create it." >&2
   exit 1
@@ -160,14 +162,14 @@ fi
 say ""
 say "2. Workflows"
 for f in create_swarm add_user_to_swarm apply_pending_swarm add_swarm_to_service apply_pending_owner log_service_owner_change log_user_team_change; do
-  upsert_workflow "$DIR/workflows/${f}.json"
+  upsert_workflow "$DEFS/workflows/${f}.json"
 done
 
 if $WITH_PAGES; then
   say ""
   say "3. Pages"
   for f in org_structure my_team management ownership_trail; do
-    upsert_page "$DIR/pages/${f}.json"
+    upsert_page "$DEFS/pages/${f}.json"
   done
 fi
 

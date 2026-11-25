@@ -1,8 +1,10 @@
 # Dynamic ownership: Terraform
 
-Installs the [dynamic ownership pattern](../README.md) into a Port organization with the [Port Terraform provider](https://registry.terraform.io/providers/port-labs/port-labs/latest/docs). This is a root module: run it directly, or lift the files into your own Terraform.
+Defines the Port side of the [dynamic ownership pattern](../../README.md) with the [Port Terraform provider](https://registry.terraform.io/providers/port-labs/port-labs/latest/docs). This is a root module: run it directly, or lift the files into your own Terraform. The [guide](../../GUIDE.md#2-port-extend-the-blueprints) has the commands. This file is the reference.
 
-Add the [GitHub sync](../github-sync) separately. It is a GitHub Action, not Terraform.
+The adapter is separate. See [`adapters/github-sync`](../../adapters/github-sync).
+
+This is one way to apply the pattern, for customers who use Terraform. The JSON objects it mirrors are in [`../definitions`](../definitions), and the [Port CLI script](../port-cli) is the other way to apply them. Use one of the two. Neither needs the other.
 
 ## What it creates
 
@@ -10,28 +12,17 @@ Add the [GitHub sync](../github-sync) separately. It is a GitHub Action, not Ter
 |---|---|
 | `blueprints.tf` | Extends `_team` and `_user` (`port_system_blueprint`), the `size` aggregation on `_team` (`port_aggregation_properties`), the `ownership_change` blueprint, and optionally a minimal service blueprint |
 | `workflows.tf` | The seven workflows (`port_workflow`) |
-| `pages.tf` | The four dashboards (`port_page`), only when `create_pages = true` |
+| `pages.tf` | The four dashboards (`port_page`), read from `../definitions/pages`, only when `create_pages = true` |
 
 The built-in properties of `_team` and `_user` are not managed. Only the properties listed in `blueprints.tf` are added.
 
-## Prerequisites
+## Requirements
 
 - Terraform 1.5 or later (validated and planned with 1.16) and the `port-labs/port-labs` provider 2.36.2 or later (the version this was planned with).
 - Port client credentials, passed as `PORT_CLIENT_ID` and `PORT_CLIENT_SECRET` environment variables.
 - A service blueprint with **Direct ownership**. See [Your service blueprint](#your-service-blueprint).
 
-## Use it
-
-```bash
-export PORT_CLIENT_ID=...
-export PORT_CLIENT_SECRET=...
-
-terraform init
-terraform plan  -var 'service_blueprint_identifier=service'
-terraform apply -var 'service_blueprint_identifier=service'
-```
-
-Review the plan before you apply it. Run it in a sandbox organization first, as the checks in the [pattern README](../README.md#try-it) describe.
+## Variables
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -74,12 +65,12 @@ mirror_properties = {
 }
 ```
 
-Alternatively, run the [`port-cli`](../port-cli) script for that one step: it merges these into an existing blueprint without replacing anything.
+If you would rather not edit a blueprint that Terraform or the UI owns, use the [Port CLI script](../port-cli) for the whole pattern instead of this module. It merges these into an existing blueprint without replacing anything.
 
 Apply this change before the workflows, because they reference the relation.
 
 ## Notes
 
-- **Append template.** `apply_pending_swarm` and `apply_pending_owner` append to a list. They do it through a template in the entity mapping's `teams` argument, which the provider documents as accepting `{{ }}` expressions. The same logic is defined as plain JSON in [`../port-cli/workflows`](../port-cli/workflows). After your first apply, run the checks in the pattern README and confirm that a user's and a service's existing teams are kept.
-- **Pages.** The files in `pages/` are the same as `../port-cli/pages/`. If you change one copy, change the other.
+- **Append template.** `apply_pending_swarm` and `apply_pending_owner` append to a list. They do it through a template in the entity mapping's `teams` argument, which the provider documents as accepting `{{ }}` expressions. The same logic is defined as plain JSON in [`../definitions/workflows`](../definitions/workflows). This has not yet been applied to a live organization. After your first apply, run the checks in the [guide](../../GUIDE.md#verify) and confirm that a user's and a service's existing teams are kept.
+- **Definitions.** The dashboards come from [`../definitions/pages`](../definitions/pages), so copy `definitions/` along with this folder if you lift the module out of this repository. The blueprints and workflows in these `.tf` files express the same objects as [`../definitions`](../definitions). A change to one needs the same change in the other.
 - **Service dependency.** The workflows that touch the service blueprint depend on `port_blueprint.service`. That resource has a count of zero unless `create_service_blueprint` is true, so Terraform does not wait on anything when you bring your own.
