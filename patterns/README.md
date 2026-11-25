@@ -28,20 +28,33 @@ Each pattern lives in its own folder under `patterns/`, laid out like this:
 
 ```
 patterns/<pattern-name>/
-├── README.md        what the pattern is and how to get started with it
-├── GUIDE.md         step-by-step guide, with a prompt for a coding agent
-├── docs/            all the relevant documentation for the pattern
+├── README.md        what the pattern is, why it exists, its requirements and limits
+├── GUIDE.md         how to set the pattern up, with a prompt for a coding agent
+├── docs/            design and reference material: data model, diagrams, decisions
 ├── adapters/        customer-specific: parts outside Port that vary by customer
 └── port-config/     port-specific: what you create in Port
     ├── terraform/   customers choose one of these two
     └── port-cli/
 ```
 
-- **`README.md`** explains what the pattern is and how to get started using it.
-- **`GUIDE.md`** walks someone through setting the pattern up, step by step. See [The guide](#the-guide).
-- **`docs/`** holds the rest of the documentation: design, data model, diagrams, and limits.
+- **`README.md`** is the what and the why. See [Scope](#scope-of-the-readme-and-the-guide).
+- **`GUIDE.md`** is the how. See [The guide](#the-guide).
+- **`docs/`** is reference material: design decisions, the data model, and diagrams. Neither the README nor the guide repeats it.
 - **`adapters/`** (customer-specific) holds the artifacts that connect the pattern to systems outside Port. These depend on the customer's ecosystem. Think of it as an interface with sample implementations. For example, the dynamic ownership pattern's `github-sync/` is one implementation for customers who manage teams and users in Git. A customer who manages teams in ServiceNow or Okta needs a different implementation of the same design.
 - **`port-config/`** (port-specific) holds what a customer creates in Port: blueprints, workflows, and pages. Customers choose either `terraform/` or `port-cli/`. Both produce the same result.
+
+### Scope of the README and the guide
+
+The README and the guide have separate jobs. Keep each one to its own job.
+
+- **`README.md` is the what and the why.** It covers:
+  - the concept: the problem the pattern solves and how the design works, at a high level;
+  - constraints and requirements: what the design assumes, such as the blueprints, ownership model, or Port features it needs;
+  - shortcomings: what the pattern does not do, its known limits, and what has not been verified yet;
+  - links to the guide for setup, and to `docs/` for design detail.
+
+  It does not contain install commands, setup steps, or the agent prompt.
+- **`GUIDE.md` is the how.** It covers setting the pattern up in an organization. It assumes the reader already knows what the pattern is, and links back to the README rather than re-explaining the concept. Its prerequisites turn the README's requirements into a checklist to confirm before starting.
 
 ### The guide
 
@@ -50,15 +63,14 @@ Every pattern has a `GUIDE.md`, in the style of the [Port guides](https://docs.p
 A guide has these parts, in this order:
 
 1. **Implement with AI.** A prompt to copy into a coding agent. It tells the agent to read the pattern's `README.md`, `GUIDE.md`, and files; to ask for the inputs it needs instead of guessing; to work in a sandbox organization and run a dry run first; to ask before it changes anything; and to verify the result at the end. It also lists what the agent needs, for example the Port MCP server if the agent should inspect your organization.
-2. **Overview.** What the pattern does, and common use cases.
-3. **Prerequisites.** Everything that must be true before starting, in three groups:
+2. **Prerequisites.** Everything that must be true before starting, in three groups:
    - **Port:** an account, the role needed, credentials, and any blueprints that must already exist. For example, dynamic ownership needs a service blueprint with Direct ownership.
    - **Customer systems:** the outside systems the adapter talks to, and what must be set up in them. For example, a GitHub organization, a GitHub App, and one `owners-<repo>` team per repository.
    - **Tools:** what must be installed, such as Terraform or the Port CLI, `jq`, and Node.
-4. **Inputs.** The values the person must provide, with defaults, such as the service blueprint identifier or the GitHub organization. An agent asks for these.
-5. **Steps.** Numbered. Each step names the file or folder it uses, the command to run, and the result to expect. Port steps offer `terraform/` or `port-cli/`. The adapter step offers the sample implementation and says what to build if the customer's ecosystem is different.
-6. **Verify.** Checks with expected results, so a person or an agent can confirm the pattern works.
-7. **Clean up.** How to remove what the guide created.
+3. **Inputs.** The values the person must provide, with defaults, such as the service blueprint identifier or the GitHub organization. An agent asks for these.
+4. **Steps.** Numbered. Each step names the file or folder it uses, the command to run, and the result to expect. Port steps offer `terraform/` or `port-cli/`. The adapter step offers the sample implementation and says what to build if the customer's ecosystem is different.
+5. **Verify.** Checks with expected results, so a person or an agent can confirm the pattern works.
+6. **Clean up.** How to remove what the guide created.
 
 To keep a guide safe for an agent to follow:
 
