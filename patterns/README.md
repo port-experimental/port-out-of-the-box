@@ -33,15 +33,18 @@ patterns/<pattern-name>/
 ├── docs/            design and reference material: data model, diagrams, decisions
 ├── adapters/        customer-specific: parts outside Port that vary by customer
 └── port-config/     port-specific: what you create in Port
-    ├── terraform/   customers choose one of these two
-    └── port-cli/
+    ├── definitions/ the Port objects as JSON: blueprints, workflows, pages
+    ├── port-cli/    applies the definitions with the Port CLI
+    └── terraform/   the same objects as Terraform
 ```
 
 - **`README.md`** is the what and the why. See [Scope](#scope-of-the-readme-and-the-guide).
 - **`GUIDE.md`** is the how. See [The guide](#the-guide).
 - **`docs/`** is reference material: design decisions, the data model, and diagrams. Neither the README nor the guide repeats it.
 - **`adapters/`** (customer-specific) holds the artifacts that connect the pattern to systems outside Port. These depend on the customer's ecosystem. Think of it as an interface with sample implementations. For example, the dynamic ownership pattern's `github-sync/` is one implementation for customers who manage teams and users in Git. A customer who manages teams in ServiceNow or Okta needs a different implementation of the same design.
-- **`port-config/`** (port-specific) holds what a customer creates in Port: blueprints, workflows, and pages. Customers choose either `terraform/` or `port-cli/`. Both produce the same result.
+- **`port-config/`** (port-specific) holds what a customer creates in Port: blueprints, workflows, and pages.
+  - `definitions/` holds the Port objects as JSON. These files do not depend on any tool.
+  - `port-cli/` and `terraform/` are two ways to apply them. They are alternatives, and neither needs the other. Customers use one of them. A customer who does not use Terraform uses the Port CLI alone, which can create everything. Both produce the same result.
 
 ### Scope of the README and the guide
 
@@ -68,7 +71,7 @@ A guide has these parts, in this order:
    - **Customer systems:** the outside systems the adapter talks to, and what must be set up in them. For example, a GitHub organization, a GitHub App, and one `owners-<repo>` team per repository.
    - **Tools:** what must be installed, such as Terraform or the Port CLI, `jq`, and Node.
 3. **Inputs.** The values the person must provide, with defaults, such as the service blueprint identifier or the GitHub organization. An agent asks for these.
-4. **Steps.** Numbered. Each step names the file or folder it uses, the command to run, and the result to expect. Port steps offer `terraform/` or `port-cli/`. The adapter step offers the sample implementation and says what to build if the customer's ecosystem is different.
+4. **Steps.** Numbered. Each step names the file or folder it uses, the command to run, and the result to expect. Port steps offer the ways to apply `definitions/`, such as `port-cli/` or `terraform/`, as alternatives. The adapter step offers the sample implementation and says what to build if the customer's ecosystem is different.
 5. **Verify.** Checks with expected results, so a person or an agent can confirm the pattern works.
 6. **Clean up.** How to remove what the guide created.
 
