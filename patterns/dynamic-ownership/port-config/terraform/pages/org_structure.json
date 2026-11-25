@@ -1,0 +1,232 @@
+{
+  "identifier": "org_structure",
+  "title": "Org Structure",
+  "icon": "Apps",
+  "type": "dashboard",
+  "widgets": [
+    {
+      "id": "cd078565-c9d5-4a66-ba2d-6292f6959548",
+      "type": "dashboard-widget",
+      "layout": [
+        {
+          "height": 400,
+          "columns": [
+            {
+              "id": "GUDlYSi186hRqNdT",
+              "size": 12
+            }
+          ]
+        },
+        {
+          "height": 400,
+          "columns": [
+            {
+              "id": "tPlj9fzaOOV9igBY",
+              "size": 12
+            }
+          ]
+        },
+        {
+          "height": 400,
+          "columns": [
+            {
+              "id": "d8Fp1o3HJvQj4YZE",
+              "size": 6
+            },
+            {
+              "id": "c6mhTQeizLmEFDUo",
+              "size": 6
+            }
+          ]
+        }
+      ],
+      "widgets": [
+        {
+          "type": "table-entities-explorer",
+          "displayMode": "widget",
+          "title": "Teams",
+          "excludedFields": [],
+          "description": "",
+          "emptyStateText": "",
+          "icon": "Table",
+          "dataset": {
+            "combinator": "and",
+            "rules": []
+          },
+          "blueprintConfig": {
+            "_team": {
+              "filterSettings": {
+                "filterBy": {
+                  "combinator": "and",
+                  "rules": []
+                }
+              },
+              "groupSettings": {
+                "groupBy": []
+              },
+              "sortSettings": {
+                "sortBy": []
+              },
+              "propertiesSettings": {
+                "order": [
+                  "$title",
+                  "parent_team_name",
+                  "parent_team",
+                  "team_kind",
+                  "type",
+                  "status",
+                  "period",
+                  "start_date",
+                  "end_date",
+                  "size"
+                ],
+                "shown": [
+                  "$title",
+                  "type",
+                  "period",
+                  "start_date",
+                  "end_date",
+                  "team_kind",
+                  "status",
+                  "size",
+                  "parent_team"
+                ]
+              }
+            }
+          },
+          "blueprint": "_team",
+          "entitiesQueryMode": "optimized",
+          "entitiesQueryMaxResults": 1000,
+          "id": "GUDlYSi186hRqNdT"
+        },
+        {
+          "type": "entities-pie-chart",
+          "blueprint": "_team",
+          "title": "Teams by Kind",
+          "description": "",
+          "emptyStateText": "",
+          "icon": "Pie",
+          "property": "property#team_kind",
+          "dataset": {
+            "combinator": "and",
+            "rules": []
+          },
+          "segmentTableViewConfig": {
+            "_team": {
+              "propertiesSettings": {
+                "hidden": [
+                  "$identifier",
+                  "$createdAt",
+                  "$updatedAt"
+                ],
+                "order": []
+              },
+              "groupSettings": {
+                "groupBy": []
+              },
+              "sortSettings": {
+                "sortBy": []
+              },
+              "filterSettings": {
+                "filterBy": {
+                  "combinator": "and",
+                  "rules": []
+                }
+              }
+            }
+          },
+          "id": "d8Fp1o3HJvQj4YZE"
+        },
+        {
+          "type": "table-entities-explorer",
+          "displayMode": "widget",
+          "title": "People and their teams",
+          "excludedFields": [],
+          "description": "",
+          "emptyStateText": "",
+          "icon": "Table",
+          "dataset": {
+            "combinator": "and",
+            "rules": []
+          },
+          "blueprintConfig": {
+            "_user": {
+              "filterSettings": {
+                "filterBy": {
+                  "combinator": "and",
+                  "rules": []
+                }
+              },
+              "groupSettings": {
+                "groupBy": []
+              },
+              "sortSettings": {
+                "sortBy": []
+              },
+              "propertiesSettings": {
+                "order": [],
+                "shown": [
+                  "$title",
+                  "github_login",
+                  "$team"
+                ]
+              }
+            }
+          },
+          "blueprint": "_user",
+          "entitiesQueryMode": "optimized",
+          "entitiesQueryMaxResults": 1000,
+          "id": "tPlj9fzaOOV9igBY"
+        },
+        {
+          "type": "table-entities-explorer",
+          "displayMode": "widget",
+          "title": "Services and owners",
+          "excludedFields": [],
+          "description": "",
+          "emptyStateText": "",
+          "icon": "Table",
+          "dataset": {
+            "combinator": "and",
+            "rules": []
+          },
+          "blueprintConfig": {
+            "__SERVICE_BLUEPRINT__": {
+              "filterSettings": {
+                "filterBy": {
+                  "combinator": "and",
+                  "rules": []
+                }
+              },
+              "groupSettings": {
+                "groupBy": []
+              },
+              "sortSettings": {
+                "sortBy": []
+              },
+              "propertiesSettings": {
+                "order": [],
+                "shown": [
+                  "$title",
+                  "$team"
+                ]
+              }
+            }
+          },
+          "blueprint": "__SERVICE_BLUEPRINT__",
+          "entitiesQueryMode": "optimized",
+          "entitiesQueryMaxResults": 1000,
+          "id": "c6mhTQeizLmEFDUo"
+        }
+      ],
+      "fullPage": true
+    }
+  ],
+  "pageFilters": [],
+  "pageFilterPresets": [],
+  "requiredQueryParams": [],
+  "sidebar": "catalog",
+  "showInSidebar": true,
+  "section": "software_catalog",
+  "visibility": "org"
+}
